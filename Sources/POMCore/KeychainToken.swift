@@ -21,19 +21,36 @@ public enum KeychainToken {
         case expired(Date)
     }
 
-    public static let service = "Claude Code-credentials"
+    /// Claude Code raktinės įrašas.
+    public static let claudeCodeService = "Claude Code-credentials"
+    /// POM savas įrašas. Pildomas `scripts/set-token.sh` ir turi pirmenybę:
+    /// ne visuose kompiuteriuose Claude Code įraše prenumeratos raktas apskritai yra.
+    public static let ownService = "POM-claude-token"
 
-    public static func claudeCodeAccessToken(now: Date = Date()) throws -> String {
-        try parseAccessToken(from: try readSecret(), now: now)
+    public static func accessToken(now: Date = Date()) throws -> String {
+        if let own = try? readSecret(service: ownService) {
+            return try parseAccessToken(from: own, now: now)
+        }
+        return try parseAccessToken(from: try readSecret(service: claudeCodeService), now: now)
     }
 
     /// Atskirta nuo raktinės skaitymo, kad logiką būtų galima patikrinti testais.
+    ///
+    /// Priimamos dvi atmainos: grynas raktas (POM savas įrašas) ir Claude Code JSON
+    /// struktūra, iš kurios imamas tik `claudeAiOauth.accessToken`.
     public static func parseAccessToken(from secret: String, now: Date) throws -> String {
-        guard let data = secret.data(using: .utf8),
+        let trimmed = secret.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { throw TokenError.unreadableSecret }
+
+        guard let data = trimmed.data(using: .utf8),
             let root = try? JSONSerialization.jsonObject(with: data, options: []),
             let dictionary = root as? [String: Any]
         else {
-            throw TokenError.unreadableSecret
+            // Ne JSON – vadinasi, tai pats raktas.
+            guard !trimmed.contains(where: \.isWhitespace) else {
+                throw TokenError.unreadableSecret
+            }
+            return trimmed
         }
 
         guard let oauth = dictionary["claudeAiOauth"] as? [String: Any],
@@ -57,7 +74,7 @@ public enum KeychainToken {
         return Date(timeIntervalSince1970: raw > 1_000_000_000_000 ? raw / 1000 : raw)
     }
 
-    private static func readSecret() throws -> String {
+    private static func readSecret(service: String) throws -> String {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/security")
         process.arguments = ["find-generic-password", "-s", service, "-w"]

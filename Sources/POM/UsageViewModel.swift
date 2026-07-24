@@ -130,18 +130,21 @@ final class UsageViewModel: ObservableObject {
     }
 
     private func alert(window: AlertTracker.Window, display: DisplayWindow, name: String) {
+        // Riba pasako tik tai, kad reikia pranešti. Tekste rodoma tikroji reikšmė.
         guard
-            let threshold = tracker.check(
+            tracker.check(
                 window: window, percentage: display.usedPercentage, resetsAt: display.resetsAt)
+                != nil
         else { return }
 
+        let used = Int(display.usedPercentage.rounded())
         let remaining = Int(display.remainingPercentage.rounded())
-        var body = "Sunaudota \(threshold) % ar daugiau, liko \(remaining) %."
+        var body = "Sunaudota \(used) %, liko \(remaining) %."
         if let resetsAt = display.resetsAt {
             let countdown = LTFormat.countdown(to: resetsAt, now: now)
             body += " Atsistato " + LTFormat.endingWithPeriod(countdown)
         }
-        notifications.post(title: "\(name) limitas baigiasi", body: body)
+        notifications.post(subtitle: "\(name) limitas baigiasi", body: body)
     }
 
     // MARK: - Serveris
@@ -165,7 +168,7 @@ final class UsageViewModel: ObservableObject {
         Task {
             do {
                 let token = try await Task.detached(priority: .utility) {
-                    try KeychainToken.claudeCodeAccessToken()
+                    try KeychainToken.accessToken()
                 }.value
                 let fresh = try await client.fetch(token: token)
                 handleSuccess(fresh)

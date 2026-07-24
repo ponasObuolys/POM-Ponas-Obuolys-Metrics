@@ -307,6 +307,24 @@ do {
     failures.append("netikėta klaida blogam turiniui: \(error)")
 }
 
+// POM savame įraše laikomas grynas raktas, be JSON apvalkalo.
+do {
+    let token = try KeychainToken.parseAccessToken(
+        from: "  sk-ant-oat01-abc123\n", now: date(0))
+    checkEqual("grynas raktas priimamas ir apkarpomas", token, "sk-ant-oat01-abc123")
+} catch {
+    failures.append("gryno rakto skaitymas metė klaidą: \(error)")
+}
+
+do {
+    _ = try KeychainToken.parseAccessToken(from: "   ", now: date(0))
+    failures.append("tuščias įrašas turėjo mesti klaidą")
+} catch KeychainToken.TokenError.unreadableSecret {
+    check("tuščias įrašas atmestas", true)
+} catch {
+    failures.append("netikėta klaida tuščiam įrašui: \(error)")
+}
+
 // MARK: - Paleidimas prisijungus
 
 do {

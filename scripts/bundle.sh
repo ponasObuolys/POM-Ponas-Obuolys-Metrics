@@ -66,7 +66,17 @@ PLIST
 plutil -lint "$contents/Info.plist" >/dev/null
 
 echo "4/4 Pasirašoma"
-codesign --force --sign - --timestamp=none "$app" >/dev/null 2>&1
+# Pastovus savadarbis parašas leidžia macOS atpažinti POM kaip tą pačią programą po
+# kiekvieno perkompiliavimo. Be jo neveikia nei pranešimai, nei raktinės leidimo įsiminimas.
+identity="POM Self-Signed"
+if security find-identity -p codesigning 2>/dev/null | grep -q "$identity"; then
+  codesign --force --sign "$identity" --timestamp=none "$app"
+  echo "    parašas: $identity"
+else
+  codesign --force --sign - --timestamp=none "$app" >/dev/null 2>&1
+  echo "    parašas: laikinas (ad-hoc)"
+  echo "    Patarimas: ./scripts/create-signing-cert.sh įjungtų pranešimus POM vardu."
+fi
 codesign --verify "$app"
 
 echo

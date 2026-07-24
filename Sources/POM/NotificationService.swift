@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import POMCore
 import UserNotifications
@@ -6,9 +7,13 @@ import UserNotifications
 ///
 /// Pranešimai siunčiami dviem keliais. Pirmenybė teikiama įprastam macOS keliui
 /// (`UNUserNotificationCenter`) – tada pranešimas rodomas POM vardu su jos ikona.
-/// Tačiau savo kompiuteryje surinktos ir vietiniu parašu pasirašytos programos
-/// pranešimų sistemoje neužsiregistruoja: užklausa priimama, bet niekas nerodoma.
-/// Tokiu atveju pereinama prie sisteminės `osascript` komandos, kuri veikia visada.
+///
+/// Tačiau macOS pranešimų registracijai reikalauja Apple išduoto kūrėjo parašo.
+/// Patikrinta: nei laikinas (ad-hoc), nei savadarbis pastovus parašas nepadeda,
+/// net ir pažymėjus sertifikatą kaip patikimą – atsakoma „Notifications are not
+/// allowed for this application“. Todėl naudojamas atsarginis kelias per sisteminę
+/// `osascript` komandą, kuri veikia visada. Pranešime POM nurodoma antrašte,
+/// kad būtų aišku, kas praneša.
 @MainActor
 final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
     enum Delivery {
@@ -40,15 +45,18 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
         }
 
         UNUserNotificationCenter.current().delegate = self
+        // Leidimo langelį macOS rodo tik aktyviai programai. POM gyvena meniu juostoje ir
+        // priekiniame plane nebūna niekada, todėl užklausos metu ji trumpam aktyvuojama.
+        NSApplication.shared.activate(ignoringOtherApps: true)
         delivery = await requestAuthorization() ? .system : .script
         isReady = true
     }
 
-    func post(title: String, body: String) {
+    func post(subtitle: String, body: String) {
         switch delivery {
         case .system:
             let content = UNMutableNotificationContent()
-            content.title = title
+            content.title = subtitle
             content.body = body
             content.sound = .default
             let request = UNNotificationRequest(
@@ -56,7 +64,7 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
             UNUserNotificationCenter.current().add(request)
 
         case .script:
-            postViaScript(title: title, body: body)
+            postViaScript(title: "POM", subtitle: subtitle, body: body)
 
         case .unavailable:
             break
@@ -68,7 +76,8 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
         case .system:
             return nil
         case .script:
-            return "Pranešimus rodo macOS scenarijų įrankis (POM pasirašyta vietiniu parašu)."
+            return "Pranešimus perduoda macOS scenarijų įrankis: registruotis pranešimų "
+                + "sistemoje gali tik Apple parašu pasirašytos programos."
         case .unavailable:
             return "Pranešimai veikia tik įdiegus programą į /Applications."
         }
@@ -88,9 +97,8 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
         let timeout = authorizationTimeout
         return await withTaskGroup(of: Bool?.self) { group in
             group.addTask {
-                let granted = try? await UNUserNotificationCenter.current()
-                    .requestAuthorization(options: [.alert, .sound])
-                return granted ?? false
+                (try? await UNUserNotificationCenter.current()
+                    .requestAuthorization(options: [.alert, .sound])) ?? false
             }
             group.addTask {
                 try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
@@ -103,9 +111,10 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
         }
     }
 
-    private func postViaScript(title: String, body: String) {
+    private func postViaScript(title: String, subtitle: String, body: String) {
         let script = "display notification \(AppleScriptString.quoted(body)) "
-            + "with title \(AppleScriptString.quoted(title))"
+            + "with title \(AppleScriptString.quoted(title)) "
+            + "subtitle \(AppleScriptString.quoted(subtitle))"
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
