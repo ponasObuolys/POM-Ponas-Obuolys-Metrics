@@ -178,6 +178,33 @@ checkEqual("ketvirta klaida – riba 120 min.", gate.backoffInterval, 120 * 60)
 gate.recordSuccess()
 checkEqual("po sėkmės pauzė nunulinama", gate.backoffInterval, 30 * 60)
 
+// Nuolatinė kliūtis: raktui trūksta teisių, tad kartoti nėra prasmės.
+var blockedGate = ServerFetchGate(enabled: true)
+checkEqual("iš pradžių neužblokuota", blockedGate.isBlocked, false)
+blockedGate.block()
+checkEqual("užblokavus – neklausiama",
+    blockedGate.decide(localCapturedAt: nil, now: date(0), manual: false),
+    ServerFetchGate.Decision.skipBlocked)
+checkEqual("net rankinis mygtukas neapeina blokavimo",
+    blockedGate.decide(localCapturedAt: nil, now: date(0), manual: true),
+    ServerFetchGate.Decision.skipBlocked)
+blockedGate.unblock()
+checkEqual("atblokavus klausiama vėl",
+    blockedGate.decide(localCapturedAt: nil, now: date(0), manual: false),
+    ServerFetchGate.Decision.fetch)
+
+// Serverio klaidos paaiškinimas rodomas vartotojui, tad turi būti perskaitomas.
+checkEqual(
+    "serverio paaiškinimas ištraukiamas",
+    OAuthUsageClient.serverMessage(
+        from: Data(
+            #"{"type":"error","error":{"type":"permission_error","message":"OAuth token does not meet scope requirement any_of(user:profile, user:office)"}}"#
+                .utf8)),
+    "OAuth token does not meet scope requirement any_of(user:profile, user:office)")
+checkEqual(
+    "netinkamas atsakymas negriauna programos",
+    OAuthUsageClient.serverMessage(from: Data("ne json".utf8)), "")
+
 var manualGate = ServerFetchGate(enabled: true)
 checkEqual("rankinis mygtukas veikia net su šviežiais duomenimis",
     manualGate.decide(localCapturedAt: date(0), now: date(10), manual: true),

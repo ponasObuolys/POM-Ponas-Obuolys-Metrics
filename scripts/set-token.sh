@@ -85,8 +85,19 @@ case "$status" in
     echo "Tai nereiškia, kad raktas blogas, tad jis bus išsaugotas."
     store_it=1
     ;;
-  401 | 403)
-    echo "Serveris rakto nepriėmė (HTTP $status). Raktas neišsaugotas."
+  403)
+    echo "Raktas galioja, bet neturi teisės skaityti limitų (HTTP 403)."
+    echo "Serveris sako:"
+    jq -r '.error.message // empty' "$body" 2>/dev/null | sed 's/^/  /'
+    echo
+    echo "Taip atsako „claude setup-token“ raktas: jis skirtas pokalbiams su modeliu,"
+    echo "o limitų peržiūrai reikia atskiros teisės (user:profile), kurios jame nėra."
+    echo "Raktas neišsaugotas, nes serverio kelias su juo neveiktų."
+    echo
+    echo "POM dėl to nenukenčia: skaičius ji ima tiesiai iš Claude Code."
+    ;;
+  401)
+    echo "Serveris rakto neatpažino (HTTP 401). Raktas neišsaugotas."
     echo 'Patikrink, ar nukopijavai visą "claude setup-token" išvestį.'
     ;;
   000)

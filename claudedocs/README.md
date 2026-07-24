@@ -21,12 +21,8 @@ Pirmas žingsnis nebūtinas, bet naudingas: laikinas (ad-hoc) parašas keičiasi
 perkompiliavimo, todėl macOS kaskart mato tarsi kitą programą ir raktinės leidimo
 „Visada leisti“ neįsimena. Pastovus savadarbis parašas tą išsprendžia.
 
-Neprivalomas žingsnis, jei nori atsarginio serverio kelio:
-
-```bash
-claude setup-token        # gauni raktą
-./scripts/set-token.sh    # įklijuoji; scenarijus iškart patikrina, ar serveris jį priima
-```
+Atsarginio serverio kelio šiuo metu įjungti nėra kuo, žr. skyrių „Kodėl serverio kelias
+dažniausiai neveiks“.
 
 Jei ikonos prie laikrodžio nematyti, kalta gali būti meniu juostos tvarkyklė
 (**Ice**, Bartender ar panaši): naujus elementus jos paslepia. Ice nustatymuose
@@ -68,6 +64,24 @@ paslaugos rakto išsiuntimas Anthropic serveriui būtų rimta klaida.
 Raktas skaitomas per sisteminę komandą `/usr/bin/security` ir tik skaitomas, niekada
 nekeičiamas. Nė vieno rakto neradus, langelyje apie tai pranešama, o skaičiai toliau
 imami iš Claude Code. Programa dėl to neveikia blogiau.
+
+### Kodėl serverio kelias dažniausiai neveiks
+
+Patikrinta praktiškai, `./scripts/diagnose-token.sh` pagalba:
+
+| Užklausa | Atsakymas |
+|---|---|
+| `/v1/models` su `claude setup-token` raktu | HTTP 200, raktas veikia |
+| `/api/oauth/profile` su tuo pačiu raktu | HTTP 403, `OAuth token does not meet scope requirement any_of(user:profile, user:office)` |
+| `/api/oauth/usage` su tuo pačiu raktu | HTTP 403 (vėliau 429 dėl užklausų ribojimo) |
+
+Išvada: `claude setup-token` duoda raktą pokalbiams su modeliu, o limitų peržiūrai reikia
+atskiros `user:profile` teisės, kurios jame nėra. Tokią teisę turi tik įprasto prisijungimo
+metu sukurtas raktas, o jis guli ne visur pasiekiamoje vietoje.
+
+Gavusi HTTP 403 arba 401, POM serverio kelią **užblokuoja visam paleidimo laikui**:
+kartoti nuolatinę klaidą beprasmiška, o be reikalo blaškyti ribojamą adresą – žalinga.
+Langelyje parodoma, kodėl neklausiama.
 
 ## Nustatymai
 
@@ -117,5 +131,8 @@ security delete-certificate -c "POM Self-Signed"   # jei nebereikia parašo
   ikona lieka scenarijų įrankio. Turint Apple kūrėjo parašą programa pati pereitų
   prie įprasto kelio, kodo keisti nereikėtų.
 - **Widget'ų nėra.** Jiems reikia Xcode ir kūrėjo parašo, o atsinaujintų jie retai.
-- **Serverio adresas neoficialus.** Gali nustoti veikti bet kada; POM be jo veikia normaliai.
+- **Serverio adresas neoficialus ir praktiškai nepasiekiamas.** Reikalauja `user:profile`
+  teisės, kurios `claude setup-token` raktas neturi, o pats adresas griežtai riboja
+  užklausas. POM be jo veikia normaliai, tik uždarius Claude Code skaičiai lieka tokie,
+  kokie buvo (o tai teisinga, nes nedirbant limitas nedidėja).
 - **Duomenys atsiranda tik po pirmo Claude Code atsakymo.** Iki tol rodoma „Duomenų dar nėra“.

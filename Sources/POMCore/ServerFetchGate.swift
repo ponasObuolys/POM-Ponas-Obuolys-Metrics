@@ -9,6 +9,9 @@ public struct ServerFetchGate: Equatable, Sendable {
     public enum Decision: Equatable, Sendable {
         case fetch
         case skipDisabled
+        /// Serveris atsakė, kad taip niekada nepavyks (pvz., raktui trūksta teisių).
+        /// Kartoti nėra prasmės, o be reikalo blaškyti serverį – žalinga.
+        case skipBlocked
         case skipLocalFresh
         case skipBackoff
         case skipManualFloor
@@ -23,6 +26,7 @@ public struct ServerFetchGate: Equatable, Sendable {
 
     public private(set) var failures: Int = 0
     public private(set) var lastAttempt: Date?
+    public private(set) var isBlocked = false
 
     public init(
         enabled: Bool,
@@ -42,6 +46,7 @@ public struct ServerFetchGate: Equatable, Sendable {
 
     public func decide(localCapturedAt: Date?, now: Date, manual: Bool) -> Decision {
         guard enabled else { return .skipDisabled }
+        guard !isBlocked else { return .skipBlocked }
 
         if manual {
             if let lastAttempt, now.timeIntervalSince(lastAttempt) < manualFloor {
@@ -65,9 +70,19 @@ public struct ServerFetchGate: Equatable, Sendable {
 
     public mutating func recordSuccess() {
         failures = 0
+        isBlocked = false
     }
 
     public mutating func recordFailure() {
         failures += 1
+    }
+
+    /// Nuolatinė kliūtis: daugiau nebandoma, kol vartotojas nepakeis nustatymų.
+    public mutating func block() {
+        isBlocked = true
+    }
+
+    public mutating func unblock() {
+        isBlocked = false
     }
 }

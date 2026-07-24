@@ -5,6 +5,11 @@ import Foundation
 public struct OAuthUsageClient: Sendable {
     public enum ClientError: Error, Equatable {
         case rateLimited
+        /// Raktas galioja, bet neturi teisės skaityti paskyros duomenų.
+        /// Taip atsako `claude setup-token` raktas: jis skirtas pokalbiams su modeliu,
+        /// o limitams reikia `user:profile` teisės. Klaida nuolatinė, kartoti nėra prasmės.
+        case forbidden(String)
+        case unauthorized
         case http(Int)
         case invalidResponse
     }
@@ -32,9 +37,29 @@ public struct OAuthUsageClient: Sendable {
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw ClientError.invalidResponse }
 
-        if http.statusCode == 429 { throw ClientError.rateLimited }
-        guard (200..<300).contains(http.statusCode) else { throw ClientError.http(http.statusCode) }
+        switch http.statusCode {
+        case 200..<300:
+            return try UsageParser.parse(data: data, source: .server, capturedAt: now)
+        case 429:
+            throw ClientError.rateLimited
+        case 401:
+            throw ClientError.unauthorized
+        case 403:
+            throw ClientError.forbidden(Self.serverMessage(from: data))
+        default:
+            throw ClientError.http(http.statusCode)
+        }
+    }
 
-        return try UsageParser.parse(data: data, source: .server, capturedAt: now)
+    /// Ištraukia serverio paaiškinimą iš klaidos atsakymo, kad būtų ką parodyti vartotojui.
+    public static func serverMessage(from data: Data) -> String {
+        guard let json = try? JSONSerialization.jsonObject(with: data, options: []),
+            let root = json as? [String: Any],
+            let error = root["error"] as? [String: Any],
+            let message = error["message"] as? String
+        else {
+            return ""
+        }
+        return message
     }
 }

@@ -194,6 +194,19 @@ final class UsageViewModel: ObservableObject {
 
         let reason: String
         switch error {
+        case OAuthUsageClient.ClientError.forbidden:
+            // Nuolatinė kliūtis: raktas galioja, bet neturi teisės skaityti limitų.
+            // Taip elgiasi `claude setup-token` raktas. Kartoti nėra prasmės.
+            gate.block()
+            serverNote =
+                "Serverio klausti neleidžiama: raktas neturi teisės skaityti limitų "
+                + "(reikia „user:profile“). Skaičiai imami iš Claude Code."
+            return
+        case OAuthUsageClient.ClientError.unauthorized:
+            gate.block()
+            serverNote =
+                "Serveris rakto nebepriima. Įrašyk naują: ./scripts/set-token.sh"
+            return
         case OAuthUsageClient.ClientError.rateLimited:
             reason = "serveris atmetė užklausą (per dažnai)"
         case OAuthUsageClient.ClientError.http(let code):
@@ -224,6 +237,8 @@ final class UsageViewModel: ObservableObject {
             return nil
         case .skipDisabled:
             return "Serverio klausimas išjungtas nustatymuose."
+        case .skipBlocked:
+            return "Serverio klausti neleidžiama su turimu raktu."
         case .skipLocalFresh:
             return "Duomenys jau švieži, serverio klausti nereikia."
         case .skipBackoff:
