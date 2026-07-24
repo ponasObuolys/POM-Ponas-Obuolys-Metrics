@@ -33,6 +33,12 @@ public enum LTFormat {
         return "prieš \(total / 86400) d."
     }
 
+    /// Užbaigia sakinį tašku. Kai kurie užrašai („po 3 d. 5 val.“) tašką jau turi,
+    /// todėl antro dėti nereikia.
+    public static func endingWithPeriod(_ text: String) -> String {
+        text.hasSuffix(".") ? text : text + "."
+    }
+
     /// Tikslus atsistatymo momentas: šiandienai – tik laikas, kitoms dienoms – ir data.
     public static func absolute(_ date: Date, now: Date = Date(), calendar: Calendar = .current) -> String {
         let formatter = DateFormatter()

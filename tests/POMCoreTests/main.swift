@@ -237,6 +237,76 @@ checkEqual("amžius valandomis", LTFormat.age(from: date(0), now: date(2 * 3600)
 checkEqual("amžius dienomis", LTFormat.age(from: date(0), now: date(3 * 86400)), "prieš 3 d.")
 checkEqual("ką tik", LTFormat.age(from: date(0), now: date(0)), "ką tik")
 
+checkEqual("taškas pridedamas", LTFormat.endingWithPeriod("po 14 min"), "po 14 min.")
+checkEqual("antras taškas nededamas", LTFormat.endingWithPeriod("po 3 d. 5 val."), "po 3 d. 5 val.")
+
+// MARK: - AppleScript eilutės pridengimas
+
+checkEqual("paprastas tekstas", AppleScriptString.quoted("Liko 12 %"), "\"Liko 12 %\"")
+checkEqual(
+    "kabutės pridengiamos", AppleScriptString.quoted("sako \"labas\""),
+    "\"sako \\\"labas\\\"\"")
+checkEqual(
+    "pasvirasis brūkšnys pridengiamas", AppleScriptString.quoted("a\\b"), "\"a\\\\b\"")
+
+// MARK: - Prisijungimo rakto skaitymas
+
+do {
+    let secret = """
+    {"claudeAiOauth":{"accessToken":"sk-teisingas","expiresAt":4102444800000}}
+    """
+    let token = try KeychainToken.parseAccessToken(from: secret, now: date(0))
+    checkEqual("paimamas Claude raktas", token, "sk-teisingas")
+} catch {
+    failures.append("teisingo rakto skaitymas metė klaidą: \(error)")
+}
+
+// Tame pačiame įraše guli ir svetimų paslaugų raktai. Jų imti negalima.
+do {
+    let secret = """
+    {"mcpOAuth":{"plugin:engineering:notion|abc":{"accessToken":"svetimas-raktas"}}}
+    """
+    _ = try KeychainToken.parseAccessToken(from: secret, now: date(0))
+    failures.append("PAVOJUS: paimtas svetimos paslaugos raktas")
+} catch KeychainToken.TokenError.claudeAccountNotFound {
+    check("svetimi MCP raktai neimami", true)
+} catch {
+    failures.append("netikėta klaida be Claude rakto: \(error)")
+}
+
+// Claude Code galiojimo laiką saugo milisekundėmis.
+do {
+    let secret = """
+    {"claudeAiOauth":{"accessToken":"sk-senas","expiresAt":1700000000000},
+     "mcpOAuth":{"plugin:x|y":{"accessToken":"svetimas"}}}
+    """
+    _ = try KeychainToken.parseAccessToken(from: secret, now: date(1_800_000_000))
+    failures.append("pasibaigęs raktas turėjo mesti klaidą")
+} catch KeychainToken.TokenError.expired(let when) {
+    checkEqual("milisekundės paverčiamos sekundėmis", when, date(1_700_000_000))
+} catch {
+    failures.append("netikėta klaida pasibaigusiam raktui: \(error)")
+}
+
+do {
+    let secret = """
+    {"claudeAiOauth":{"accessToken":"sk-galiojantis","expiresAt":1900000000000}}
+    """
+    let token = try KeychainToken.parseAccessToken(from: secret, now: date(1_800_000_000))
+    checkEqual("galiojantis raktas priimamas", token, "sk-galiojantis")
+} catch {
+    failures.append("galiojantis raktas atmestas: \(error)")
+}
+
+do {
+    _ = try KeychainToken.parseAccessToken(from: "ne json", now: date(0))
+    failures.append("blogas raktinės turinys turėjo mesti klaidą")
+} catch KeychainToken.TokenError.unreadableSecret {
+    check("blogas raktinės turinys atmestas", true)
+} catch {
+    failures.append("netikėta klaida blogam turiniui: \(error)")
+}
+
 // MARK: - Failo saugykla
 
 do {
