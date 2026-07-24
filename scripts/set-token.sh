@@ -23,13 +23,26 @@ fi
 
 echo "POM: Claude prisijungimo raktas"
 echo
-echo "Raktą gausi paleidęs: claude setup-token"
-echo "Įklijuok jį žemiau (ekrane nebus matomas) ir spausk Enter."
-echo
 
-printf "Raktas: "
-read -r -s token
-echo
+if [ -t 0 ]; then
+  echo "Raktą gausi paleidęs: claude setup-token"
+  echo "Įklijuok jį žemiau (ekrane nebus matomas) ir spausk Enter."
+  echo
+  printf "Raktas: "
+  read -r -s token
+  echo
+else
+  # Paleista be tikro terminalo (pvz., iš kito įrankio). Klaviatūros laukti nėra prasmės,
+  # todėl raktas imamas iš įvesties srauto: echo "raktas" | ./scripts/set-token.sh
+  if ! read -r token; then
+    echo "Nėra terminalo, o įvesties srautu raktas neperduotas."
+    echo
+    echo "Paleisk šį scenarijų įprastame Terminalo lange arba perduok raktą taip:"
+    echo "  echo \"tavo-raktas\" | ./scripts/set-token.sh"
+    exit 1
+  fi
+fi
+
 token=$(printf '%s' "$token" | tr -d '[:space:]')
 
 if [ -z "$token" ]; then
