@@ -307,6 +307,48 @@ do {
     failures.append("netikėta klaida blogam turiniui: \(error)")
 }
 
+// MARK: - Paleidimas prisijungus
+
+do {
+    let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appendingPathComponent("pom-login-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tmp) }
+
+    let plist = tmp.appendingPathComponent("lt.ponasobuolys.pom.plist")
+    let item = LoginItem(
+        plistURL: plist, executablePath: "/Applications/POM.app/Contents/MacOS/POM",
+        bootoutOnRemove: false)
+
+    checkEqual("iš pradžių išjungta", item.isEnabled, false)
+
+    try item.setEnabled(true)
+    checkEqual("įjungus aprašas atsiranda", item.isEnabled, true)
+
+    let data = try Data(contentsOf: plist)
+    let parsed =
+        try PropertyListSerialization.propertyList(from: data, options: [], format: nil)
+        as? [String: Any]
+    checkEqual("aprašo pavadinimas", parsed?["Label"] as? String, "lt.ponasobuolys.pom")
+    checkEqual(
+        "nurodyta programos vieta", (parsed?["ProgramArguments"] as? [String])?.first,
+        "/Applications/POM.app/Contents/MacOS/POM")
+    checkEqual("paleidžiama prisijungus", parsed?["RunAtLoad"] as? Bool, true)
+
+    try item.setEnabled(false)
+    checkEqual("išjungus aprašas dingsta", item.isEnabled, false)
+
+    let broken = LoginItem(plistURL: plist, executablePath: nil, bootoutOnRemove: false)
+    do {
+        try broken.setEnabled(true)
+        failures.append("be programos vietos turėjo mesti klaidą")
+    } catch LoginItem.LoginItemError.executableNotFound {
+        check("be programos vietos metama aiški klaida", true)
+    }
+} catch {
+    failures.append("paleidimo prisijungus testas metė klaidą: \(error)")
+}
+
 // MARK: - Failo saugykla
 
 do {

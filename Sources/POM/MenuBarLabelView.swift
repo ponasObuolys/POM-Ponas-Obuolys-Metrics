@@ -29,10 +29,10 @@ struct MenuBarLabelView: View {
         HStack(spacing: 5) {
             ZStack(alignment: .leading) {
                 Capsule().fill(Theme.track)
-                if hasData && window.fraction > 0 {
+                if hasData && fillFraction(window) > 0 {
                     Capsule()
                         .fill(Theme.gradient(for: window.level))
-                        .frame(width: max(2, barWidth * window.fraction))
+                        .frame(width: max(2, barWidth * fillFraction(window)))
                 }
             }
             .frame(width: barWidth, height: barHeight)
@@ -49,5 +49,12 @@ struct MenuBarLabelView: View {
         guard hasData else { return "–" }
         let value = showRemaining ? window.remainingPercentage : window.usedPercentage
         return "\(Int(value.rounded()))%"
+    }
+
+    /// Juostelė visada rodo tą patį dydį kaip ir skaičius šalia jos.
+    /// Rodant sunaudotą dalį ji pildosi, rodant likutį – tuštėja, kaip degalų matuoklis.
+    /// Spalva abiem atvejais imama pagal sunaudotą dalį, kad pavojus būtų matomas vienodai.
+    private func fillFraction(_ window: DisplayWindow) -> Double {
+        showRemaining ? 1 - window.fraction : window.fraction
     }
 }

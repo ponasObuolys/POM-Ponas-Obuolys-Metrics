@@ -1,4 +1,5 @@
 import Foundation
+import POMCore
 import SwiftUI
 
 /// Kada perspėti apie besibaigiantį limitą.
@@ -53,14 +54,17 @@ final class Settings: ObservableObject {
         didSet { defaults.set(alertPreset.rawValue, forKey: Key.alertPreset) }
     }
 
+    private let loginItem = LoginItem()
+
     @Published var launchAtLogin: Bool {
         didSet {
-            guard launchAtLogin != LoginItem.isEnabled else { return }
+            guard launchAtLogin != loginItem.isEnabled else { return }
             do {
-                try LoginItem.setEnabled(launchAtLogin)
+                try loginItem.setEnabled(launchAtLogin)
+                launchAtLoginError = nil
             } catch {
                 launchAtLoginError = error.localizedDescription
-                launchAtLogin = LoginItem.isEnabled
+                launchAtLogin = loginItem.isEnabled
             }
         }
     }
@@ -82,6 +86,6 @@ final class Settings: ObservableObject {
         notificationsEnabled = defaults.bool(forKey: Key.notifications)
         alertPreset =
             AlertPreset(rawValue: defaults.string(forKey: Key.alertPreset) ?? "") ?? .standard
-        launchAtLogin = LoginItem.isEnabled
+        launchAtLogin = loginItem.isEnabled
     }
 }
