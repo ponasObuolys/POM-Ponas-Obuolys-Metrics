@@ -8,4 +8,7 @@ Claude 5 valandų ir 7 dienų limitai macOS meniu juostoje.
 ./scripts/install-bridge.sh && ./scripts/bundle.sh && ./scripts/install.sh
 ```
 
+Dalinimuisi su kitais: `./scripts/make-dmg.sh` sukuria `dist/POM-1.0.0.dmg`.
+Gavėjui terminalo nereikia – programa prie Claude Code prisijungia pati.
+
 Xcode nereikia. Pilnas aprašymas: [claudedocs/README.md](claudedocs/README.md).

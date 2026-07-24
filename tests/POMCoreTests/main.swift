@@ -352,6 +352,55 @@ do {
     failures.append("netikėta klaida tuščiam įrašui: \(error)")
 }
 
+// MARK: - Ryšys su Claude Code
+
+do {
+    let home = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appendingPathComponent("pom-bridge-\(UUID().uuidString)", isDirectory: true)
+    let claude = home.appendingPathComponent(".claude", isDirectory: true)
+    try FileManager.default.createDirectory(at: claude, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: home) }
+
+    checkEqual(
+        "be nustatymų imamas numatytasis kelias",
+        Bridge.statuslineURL(home: home).path,
+        claude.appendingPathComponent("statusline.sh").path)
+
+    checkEqual("nesant failo – neprijungta", Bridge.isConnected(home: home), false)
+
+    let custom = claude.appendingPathComponent("mano-juosta.sh")
+    try #"{"statusLine":{"type":"command","command":"~/.claude/mano-juosta.sh"}}"#
+        .write(to: claude.appendingPathComponent("settings.json"), atomically: true, encoding: .utf8)
+    checkEqual(
+        "banguotė pakeičiama namų katalogu",
+        Bridge.statuslineURL(home: home).path, custom.path)
+
+    try "#!/bin/bash\necho labas\n".write(to: custom, atomically: true, encoding: .utf8)
+    checkEqual("be žymos – neprijungta", Bridge.isConnected(home: home), false)
+
+    try "#!/bin/bash\n\(Bridge.marker)\necho labas\n"
+        .write(to: custom, atomically: true, encoding: .utf8)
+    checkEqual("su žyma – prijungta", Bridge.isConnected(home: home), true)
+
+    do {
+        _ = try Bridge.install(scriptURL: nil)
+        failures.append("be scenarijaus turėjo mesti klaidą")
+    } catch Bridge.InstallError.scriptMissing {
+        check("trūkstamas scenarijus atpažįstamas", true)
+    }
+
+    let failing = home.appendingPathComponent("blogas.sh")
+    try "echo 'nepavyko'\nexit 1\n".write(to: failing, atomically: true, encoding: .utf8)
+    do {
+        _ = try Bridge.install(scriptURL: failing)
+        failures.append("nepavykęs scenarijus turėjo mesti klaidą")
+    } catch Bridge.InstallError.failed(let output) {
+        checkEqual("grąžinama scenarijaus išvestis", output, "nepavyko")
+    }
+} catch {
+    failures.append("ryšio testas metė klaidą: \(error)")
+}
+
 // MARK: - Paleidimas prisijungus
 
 do {

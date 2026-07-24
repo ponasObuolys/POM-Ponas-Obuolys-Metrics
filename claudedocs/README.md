@@ -6,7 +6,25 @@ Prie laikrodžio matyti dvi juostelės: viršutinė – 5 valandų limitas, apat
 Paspaudus atsidaro langelis su tiksliais skaičiais, likučiu ir laiku iki atsistatymo.
 Priartėjus prie ribos ateina pranešimas.
 
-## Įdiegimas
+## Dalinimasis su kitais
+
+```bash
+./scripts/bundle.sh && ./scripts/make-dmg.sh
+```
+
+Gaunamas `dist/POM-1.0.0.dmg`: programa, nuoroda į `/Applications` ir paaiškinimas.
+
+Gavėjui terminalo nereikia. Įsidėjęs programą į `/Applications`, jis paspaudžia ikoną
+prie laikrodžio ir mygtuką **„Prijungti“** – POM pati prisikabina prie Claude Code
+būsenos juostos, o jos neradusi susikuria naują ir užregistruoja Claude Code
+nustatymuose. Tilto scenarijai keliauja programos pakete (`Contents/Resources`).
+
+Vienas nepatogumas lieka: programa pasirašyta savadarbiu parašu, todėl pirmą kartą
+macOS ją užblokuos. Reikia paleisti dešiniu pelės mygtuku → **Open**, o jei ir tada
+neleidžia – **System Settings → Privacy & Security → Open Anyway**. Tai vienkartinis
+veiksmas. Išvengti jo galima tik su pirkta Apple kūrėjo paskyra ir notarizacija.
+
+## Įdiegimas iš kodo
 
 ```bash
 ./scripts/create-signing-cert.sh   # vieną kartą: pastovus savadarbis parašas

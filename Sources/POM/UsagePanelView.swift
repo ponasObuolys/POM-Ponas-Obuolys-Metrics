@@ -66,21 +66,26 @@ struct UsagePanelView: View {
             .frame(height: 1)
     }
 
+    @ViewBuilder
     private var emptyState: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "clock.badge.questionmark")
-                .font(.system(size: 26, weight: .light))
-                .foregroundStyle(.secondary)
-            Text("Duomenų dar nėra")
-                .font(.system(size: 13, weight: .medium))
-            Text("Padirbėk su Claude Code, ir per pusę minutės skaičiai atsiras čia.")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
+        if model.isBridgeConnected {
+            VStack(spacing: 8) {
+                Image(systemName: "clock.badge.questionmark")
+                    .font(.system(size: 26, weight: .light))
+                    .foregroundStyle(.secondary)
+                Text("Duomenų dar nėra")
+                    .font(.system(size: 13, weight: .medium))
+                Text("Padirbėk su Claude Code, ir per pusę minutės skaičiai atsiras čia.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.horizontal, 26)
+            .padding(.vertical, 26)
+        } else {
+            ConnectView(model: model)
         }
-        .padding(.horizontal, 26)
-        .padding(.vertical, 26)
     }
 
     private var footer: some View {
@@ -110,6 +115,56 @@ struct UsagePanelView: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .focusEffectDisabled()
+    }
+}
+
+// MARK: - Pirmas paleidimas: prijungimas prie Claude Code
+
+private struct ConnectView: View {
+    @ObservedObject var model: UsageViewModel
+    @State private var error: String?
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "link.badge.plus")
+                .font(.system(size: 26, weight: .light))
+                .foregroundStyle(.secondary)
+
+            Text("Dar neprijungta prie Claude Code")
+                .font(.system(size: 13, weight: .medium))
+
+            Text(
+                "Kad matytum limitus, POM reikia prisikabinti prie Claude Code būsenos juostos. "
+                    + "Tai vienas veiksmas, o senoji juosta išsaugoma atsargai."
+            )
+            .font(.system(size: 11))
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+
+            Button {
+                Task { error = await model.connectToClaudeCode() }
+            } label: {
+                if model.isConnecting {
+                    Text("Jungiamasi…")
+                } else {
+                    Text("Prijungti")
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            .keyboardShortcut(.defaultAction)
+            .disabled(model.isConnecting)
+
+            if let error {
+                Text(error)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.red)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 22)
     }
 }
 

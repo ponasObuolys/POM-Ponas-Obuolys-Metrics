@@ -7,6 +7,9 @@ final class UsageViewModel: ObservableObject {
     @Published private(set) var now = Date()
     @Published private(set) var snapshot: UsageSnapshot?
     @Published private(set) var serverNote: String?
+    /// Ar limitų reikšmės iš Claude Code apskritai pasiekia POM.
+    @Published private(set) var isBridgeConnected = false
+    @Published private(set) var isConnecting = false
 
     let settings: Settings
     let notifications: NotificationService
@@ -34,6 +37,30 @@ final class UsageViewModel: ObservableObject {
         serverSnapshot = serverStore.load()
         reloadLocal(force: true)
         recompute()
+        isBridgeConnected = Bridge.isConnected(home: Self.home)
+    }
+
+    private static var home: URL {
+        FileManager.default.homeDirectoryForCurrentUser
+    }
+
+    /// Prikabina POM prie Claude Code statusline. Grąžina klaidos tekstą, jei nepavyko.
+    func connectToClaudeCode() async -> String? {
+        guard !isConnecting else { return nil }
+        isConnecting = true
+        defer { isConnecting = false }
+
+        let script = Bundle.main.url(forResource: "install-bridge", withExtension: "sh")
+        do {
+            _ = try await Task.detached(priority: .userInitiated) {
+                try Bridge.install(scriptURL: script)
+            }.value
+            isBridgeConnected = Bridge.isConnected(home: Self.home)
+            tick()
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
     }
 
     // MARK: - Rodomos reikšmės
@@ -95,6 +122,9 @@ final class UsageViewModel: ObservableObject {
 
     private func tick() {
         now = Date()
+        if !isBridgeConnected {
+            isBridgeConnected = Bridge.isConnected(home: Self.home)
+        }
         reloadLocal(force: false)
         recompute()
         deliverAlerts()
@@ -156,7 +186,12 @@ final class UsageViewModel: ObservableObject {
         let decision = gate.decide(localCapturedAt: snapshot?.capturedAt, now: now, manual: manual)
 
         guard decision == .fetch else {
-            if manual { serverNote = note(for: decision) }
+            if decision == .skipDisabled {
+                // Išjungta pačiam vartotojui – aiškinti nėra ko, langelis lieka švarus.
+                serverNote = nil
+            } else if manual {
+                serverNote = note(for: decision)
+            }
             return
         }
 

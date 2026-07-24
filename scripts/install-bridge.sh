@@ -26,11 +26,85 @@ if [ -f "$settings" ] && command -v jq >/dev/null 2>&1; then
 fi
 [ -n "$statusline" ] || statusline="$HOME/.claude/statusline.sh"
 
+# Statusline dar nesukurtas: pasidarome savo. Be jo Claude Code limitų reikšmių
+# niekam neperduoda, tad kitokio kelio prie duomenų nėra.
 if [ ! -f "$statusline" ]; then
-  echo "Klaida: nerastas statusline scenarijus ($statusline)."
-  echo "Claude Code nustatymuose turi būti nurodytas statusLine.command."
-  exit 1
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "Klaida: reikalinga jq komanda. Įdiek ją: brew install jq"
+    exit 1
+  fi
+
+  statusline="$HOME/.claude/statusline.sh"
+  echo "Statusline dar nėra, sukuriamas: $statusline"
+  mkdir -p "$HOME/.claude"
+
+  cat >"$statusline" <<'STATUSLINE'
+#!/bin/bash
+# Statusline Claude Code juostai. Sukūrė POM (Ponas Obuolys Metrika).
+# Rodo modelį, katalogą, konteksto užpildymą ir plano limitus.
+export LC_ALL=C
+
+input=$(cat)
+
+{
+  IFS= read -r model
+  IFS= read -r dir
+  IFS= read -r context
+  IFS= read -r five
+  IFS= read -r seven
+} < <(
+  echo "$input" | jq -r '[
+    (.model.display_name // "Claude"),
+    (.workspace.current_dir // "."),
+    ((.context_window.used_percentage // "") | tostring),
+    ((.rate_limits.five_hour.used_percentage // "") | tostring),
+    ((.rate_limits.seven_day.used_percentage // "") | tostring)
+  ] | .[]'
+)
+
+color() {
+  if [ "$1" -lt 70 ]; then printf '\033[32m'
+  elif [ "$1" -lt 90 ]; then printf '\033[33m'
+  else printf '\033[31m'
+  fi
+}
+
+line="\033[36m[$model]\033[0m 📁 $(basename "$dir")"
+
+if [ -n "$context" ]; then
+  used=$(printf "%.0f" "$context")
+  line+=" | $(color "$used")${used}%\033[0m konteksto"
 fi
+
+limits=""
+if [ -n "$five" ]; then
+  v=$(printf "%.0f" "$five")
+  limits+="5h $(color "$v")${v}%\033[0m"
+fi
+if [ -n "$seven" ]; then
+  v=$(printf "%.0f" "$seven")
+  [ -n "$limits" ] && limits+=" · "
+  limits+="7d $(color "$v")${v}%\033[0m"
+fi
+[ -n "$limits" ] && line+=" | ⏳ $limits"
+
+printf "%b" "$line"
+STATUSLINE
+
+  chmod +x "$statusline"
+
+  # Užregistruojama Claude Code nustatymuose, prieš tai pasidarius kopiją.
+  if [ -f "$settings" ]; then
+    cp "$settings" "$settings.bak-$(date +%Y%m%d%H%M%S)"
+    tmp_settings=$(mktemp)
+    jq '.statusLine = {"type":"command","command":"~/.claude/statusline.sh","refreshInterval":30}' \
+      "$settings" >"$tmp_settings" && mv "$tmp_settings" "$settings"
+  else
+    printf '%s\n' '{"statusLine":{"type":"command","command":"~/.claude/statusline.sh","refreshInterval":30}}' >"$settings"
+  fi
+  echo "Užregistruota Claude Code nustatymuose."
+fi
+
 echo "Statusline scenarijus: $statusline"
 
 # 2. Įrašomas tilto scenarijus

@@ -74,9 +74,12 @@ final class Settings: ObservableObject {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        // Serverio klausimas išjungtas iš pradžių sąmoningai. Pirma, jam reikia rakto su
+        // „user:profile“ teise, kurios įprastai nėra. Antra, vien bandymas perskaityti
+        // raktinę iššauktų macOS leidimo langelį – per pirmą paleidimą tai tik gąsdintų.
         defaults.register(defaults: [
             Key.showRemaining: false,
-            Key.serverFallback: true,
+            Key.serverFallback: false,
             Key.notifications: true,
             Key.alertPreset: AlertPreset.standard.rawValue,
         ])
