@@ -50,6 +50,16 @@ if [ -z "$token" ]; then
   exit 1
 fi
 
+# Dažna klaida: iškarpinėje lieka ne raktas, o paskutinė nukopijuota komanda.
+case "$token" in
+  sk-ant-*) ;;
+  *)
+    echo "Tai nepanašu į raktą: pradžia „${token:0:12}…“, ilgis ${#token}."
+    echo "Tikras raktas prasideda „sk-ant-“. Nieko neįrašiau."
+    exit 1
+    ;;
+esac
+
 echo "Tikrinama, ar serveris raktą priima..."
 body=$(mktemp)
 trap 'rm -f "$body"' EXIT

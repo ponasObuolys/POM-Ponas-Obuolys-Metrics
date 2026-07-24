@@ -23,6 +23,19 @@ if [ -z "$token" ]; then
   exit 1
 fi
 
+# Dažna klaida: iškarpinėje lieka ne raktas, o paskutinė nukopijuota komanda.
+case "$token" in
+  sk-ant-*) ;;
+  *)
+    echo "Tai nepanašu į raktą: pradžia „${token:0:12}…“, ilgis ${#token}."
+    echo "Tikras raktas prasideda „sk-ant-“."
+    echo
+    echo "Greičiausiai iškarpinėje liko kas kita. Nukopijuok raktą iš naujo"
+    echo "ir paleisk šį scenarijų įprastame Terminalo lange."
+    exit 1
+    ;;
+esac
+
 echo "Rakto pradžia: ${token:0:12}… (ilgis ${#token})"
 echo
 
