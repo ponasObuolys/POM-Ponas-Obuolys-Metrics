@@ -16,13 +16,23 @@ public struct OAuthUsageClient: Sendable {
 
     public let endpoint: URL
     public let session: URLSession
+    public let userAgent: String
 
     public init(
         endpoint: URL = URL(string: "https://api.anthropic.com/api/oauth/usage")!,
-        session: URLSession = .shared
+        session: URLSession = .shared,
+        userAgent: String = Self.defaultUserAgent
     ) {
         self.endpoint = endpoint
         self.session = session
+        self.userAgent = userAgent
+    }
+
+    /// POM prisistato savo vardu. Dėtis kitu įrankiu būtų nesąžininga serverio atžvilgiu
+    /// ir apsunkintų klaidų aiškinimąsi abiem pusėms.
+    public static var defaultUserAgent: String {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev"
+        return "POM/\(version) (+https://github.com/ponasObuolys/POM-Ponas-Obuolys-Metrics)"
     }
 
     public func fetch(token: String, now: Date = Date()) async throws -> UsageSnapshot {
@@ -32,7 +42,7 @@ public struct OAuthUsageClient: Sendable {
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("claude-code/1.0 (external, cli)", forHTTPHeaderField: "User-Agent")
+        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
 
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw ClientError.invalidResponse }

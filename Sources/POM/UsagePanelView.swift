@@ -80,6 +80,14 @@ struct UsagePanelView: View {
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
+
+                if let note = model.jqNote {
+                    Text(note)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.orange)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             .padding(.horizontal, 26)
             .padding(.vertical, 26)

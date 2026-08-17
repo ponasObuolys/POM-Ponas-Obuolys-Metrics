@@ -16,27 +16,90 @@ marker_end="# <<< POM (Ponas Obuolys Metrika) <<<"
 echo "POM tilto diegimas"
 echo
 
-# 1. Surandamas statusline scenarijus
-statusline=""
-if [ -f "$settings" ] && command -v jq >/dev/null 2>&1; then
-  raw=$(jq -r '.statusLine.command // ""' "$settings" 2>/dev/null || echo "")
-  if [ -n "$raw" ]; then
-    statusline="${raw/#\~/$HOME}"
-  fi
+# 0. Be jq tiltas duomenų neišrinktų ir tyliai nieko nerašytų, tad tikrinama iš karto.
+if ! command -v jq >/dev/null 2>&1; then
+  echo "Klaida: reikalinga jq komanda, be jos tiltas duomenų neperduotų."
+  echo "Įdiek ją: brew install jq"
+  exit 1
 fi
-[ -n "$statusline" ] || statusline="$HOME/.claude/statusline.sh"
 
-# Statusline dar nesukurtas: pasidarome savo. Be jo Claude Code limitų reikšmių
-# niekam neperduoda, tad kitokio kelio prie duomenų nėra.
-if [ ! -f "$statusline" ]; then
-  if ! command -v jq >/dev/null 2>&1; then
-    echo "Klaida: reikalinga jq komanda. Įdiek ją: brew install jq"
-    exit 1
-  fi
+# Iš nustatymuose įrašytos komandos ištraukia scenarijaus kelią. Komandoje gali būti ne tik
+# pats scenarijus, bet ir vykdyklė su argumentais („bash ~/.claude/juosta.sh --trumpai“),
+# todėl imamas pirmas į kelią panašus žodis, kuris tikrai yra esamas failas.
+resolve_script() {
+  local command="$1" token expanded
+  for token in $command; do
+    token="${token%\"}"; token="${token#\"}"
+    token="${token%\'}"; token="${token#\'}"
+    case "$token" in
+      */* | "~"*) ;;
+      *) continue ;;
+    esac
+    expanded="${token/#\~/$HOME}"
+    if [ -f "$expanded" ]; then
+      printf '%s' "$expanded"
+      return 0
+    fi
+  done
+  return 1
+}
 
-  statusline="$HOME/.claude/statusline.sh"
+# Komanda iš vieno žodžio, panašaus į kelią. Tokį failą sukurti saugu: nustatymai
+# į jį jau rodo, tad nieko svetimo nepakeisime.
+single_path() {
+  local command="$1" token count=0 candidate=""
+  for token in $command; do
+    count=$((count + 1))
+    candidate="$token"
+  done
+  [ "$count" -eq 1 ] || return 1
+  candidate="${candidate%\"}"; candidate="${candidate#\"}"
+  candidate="${candidate%\'}"; candidate="${candidate#\'}"
+  case "$candidate" in
+    */* | "~"*)
+      printf '%s' "${candidate/#\~/$HOME}"
+      return 0
+      ;;
+  esac
+  return 1
+}
+
+# 1. Surandamas statusline scenarijus
+configured=""
+if [ -f "$settings" ]; then
+  configured=$(jq -r '.statusLine.command // ""' "$settings" 2>/dev/null || echo "")
+fi
+
+statusline=""
+create_target=""
+register=false
+
+if [ -z "$configured" ]; then
+  # Būsenos juostos nėra visai. Be jos Claude Code limitų reikšmių niekam neperduoda,
+  # tad kitokio kelio prie duomenų nėra: susikuriame savo ir užregistruojame.
+  create_target="$HOME/.claude/statusline.sh"
+  register=true
+elif statusline=$(resolve_script "$configured"); then
+  : # rastas esamas scenarijus, prie jo ir kabinsimės
+elif create_target=$(single_path "$configured"); then
+  echo "Nustatymuose nurodytas scenarijus dar nesukurtas, sukuriamas: $create_target"
+else
+  echo "Klaida: nustatymuose nurodyta būsenos juostos komanda, bet jos scenarijaus rasti nepavyko:"
+  echo "  $configured"
+  echo
+  echo "Nieko nekeičiu, kad nesugadinčiau tavo nustatymų. Prikabink tiltą ranka:"
+  echo "savo scenarijuje, iškart po eilutės, kurioje nuskaitomi duomenys iš Claude Code, įrašyk"
+  echo
+  echo "  $marker_start"
+  echo "  printf '%s' \"\$input\" | \"\$HOME/Library/Application Support/POM/pom-bridge.sh\" >/dev/null 2>&1 &"
+  echo "  $marker_end"
+  exit 1
+fi
+
+if [ -n "$create_target" ]; then
+  statusline="$create_target"
   echo "Statusline dar nėra, sukuriamas: $statusline"
-  mkdir -p "$HOME/.claude"
+  mkdir -p "$(dirname "$statusline")"
 
   cat >"$statusline" <<'STATUSLINE'
 #!/bin/bash
@@ -94,15 +157,18 @@ STATUSLINE
   chmod +x "$statusline"
 
   # Užregistruojama Claude Code nustatymuose, prieš tai pasidarius kopiją.
-  if [ -f "$settings" ]; then
-    cp "$settings" "$settings.bak-$(date +%Y%m%d%H%M%S)"
-    tmp_settings=$(mktemp)
-    jq '.statusLine = {"type":"command","command":"~/.claude/statusline.sh","refreshInterval":30}' \
-      "$settings" >"$tmp_settings" && mv "$tmp_settings" "$settings"
-  else
-    printf '%s\n' '{"statusLine":{"type":"command","command":"~/.claude/statusline.sh","refreshInterval":30}}' >"$settings"
+  if $register; then
+    mkdir -p "$HOME/.claude"
+    if [ -f "$settings" ]; then
+      cp "$settings" "$settings.bak-$(date +%Y%m%d%H%M%S)"
+      tmp_settings=$(mktemp)
+      jq '.statusLine = {"type":"command","command":"~/.claude/statusline.sh","refreshInterval":30}' \
+        "$settings" >"$tmp_settings" && mv "$tmp_settings" "$settings"
+    else
+      printf '%s\n' '{"statusLine":{"type":"command","command":"~/.claude/statusline.sh","refreshInterval":30}}' >"$settings"
+    fi
+    echo "Užregistruota Claude Code nustatymuose."
   fi
-  echo "Užregistruota Claude Code nustatymuose."
 fi
 
 echo "Statusline scenarijus: $statusline"

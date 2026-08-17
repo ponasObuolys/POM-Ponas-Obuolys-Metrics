@@ -1,0 +1,28 @@
+name: Patikra
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Kompiliavimas ir testai
+    runs-on: macos-latest
+
+    steps:
+      - name: Parsisiunčiamas kodas
+        uses: actions/checkout@v4
+
+      - name: Swift versija
+        run: swift --version
+
+      - name: Kompiliuojama
+        run: swift build -c release
+
+      - name: Testai
+        run: swift run pom-tests
+
+      - name: Scenarijų sintaksė
+        run: bash -n scripts/*.sh

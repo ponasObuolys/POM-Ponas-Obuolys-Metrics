@@ -9,7 +9,8 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 app_name="POM"
 bundle_id="lt.ponasobuolys.pom"
-version="1.0.0"
+# Versija laikoma viename faile, kad programos viduje ir DMG pavadinime ji nesiskirtų.
+version="$(tr -d '[:space:]' <"$root/VERSION")"
 
 dist="$root/dist"
 app="$dist/$app_name.app"

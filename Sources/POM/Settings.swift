@@ -70,7 +70,6 @@ final class Settings: ObservableObject {
     }
 
     @Published var launchAtLoginError: String?
-    @Published var notificationsUnavailable: String?
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults

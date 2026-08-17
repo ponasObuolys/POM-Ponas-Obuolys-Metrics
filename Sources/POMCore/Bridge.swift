@@ -22,32 +22,102 @@ public enum Bridge {
         }
     }
 
+    /// Kur POM įsirašo tilto scenarijų.
+    public static func scriptURL(home: URL) -> URL {
+        home.appendingPathComponent("Library/Application Support/POM/pom-bridge.sh")
+    }
+
+    /// Kur Claude Code laiko statusline scenarijų, jei nenurodyta kitaip.
+    public static func defaultStatuslineURL(home: URL) -> URL {
+        home.appendingPathComponent(".claude/statusline.sh")
+    }
+
     /// Kur guli Claude Code statusline scenarijus. Pirmiausia žiūrima į nustatymus,
     /// nes vartotojas gali būti nurodęs savo vietą.
-    public static func statuslineURL(home: URL) -> URL {
-        let settings = home.appendingPathComponent(".claude/settings.json")
-        let fallback = home.appendingPathComponent(".claude/statusline.sh")
+    public static func statuslineURL(home: URL, fileManager: FileManager = .default) -> URL {
+        guard let command = configuredCommand(home: home),
+            let script = scriptPath(in: command, home: home, fileManager: fileManager)
+        else {
+            return defaultStatuslineURL(home: home)
+        }
+        return script
+    }
 
+    /// Claude Code nustatymuose įrašyta būsenos juostos komanda.
+    public static func configuredCommand(home: URL) -> String? {
+        let settings = home.appendingPathComponent(".claude/settings.json")
         guard let data = try? Data(contentsOf: settings),
             let json = try? JSONSerialization.jsonObject(with: data, options: []),
             let root = json as? [String: Any],
             let statusLine = root["statusLine"] as? [String: Any],
-            var command = statusLine["command"] as? String,
-            !command.isEmpty
+            let command = statusLine["command"] as? String,
+            !command.trimmingCharacters(in: .whitespaces).isEmpty
         else {
-            return fallback
+            return nil
         }
-
-        if command.hasPrefix("~/") {
-            command = home.path + String(command.dropFirst(1))
-        }
-        return URL(fileURLWithPath: command)
+        return command
     }
 
-    public static func isConnected(home: URL) -> Bool {
-        let url = statuslineURL(home: home)
+    /// Iš komandos ištraukia scenarijaus kelią.
+    ///
+    /// Komandoje gali būti ne tik pats scenarijus, bet ir vykdyklė su argumentais
+    /// („bash ~/.claude/juosta.sh --trumpai“). Todėl imamas pirmas į kelią panašus žodis,
+    /// kuris tikrai yra esamas failas. Neradus nė vieno grąžinama `nil`: spėlioti pavojinga,
+    /// nes tada būtų keičiamas visai ne tas failas.
+    public static func scriptPath(
+        in command: String, home: URL, fileManager: FileManager = .default
+    ) -> URL? {
+        for token in tokens(in: command) {
+            guard token.contains("/") || token.hasPrefix("~") else { continue }
+            let url = expand(token, home: home)
+            if fileManager.fileExists(atPath: url.path) { return url }
+        }
+        return nil
+    }
+
+    /// Ryšys laikomas veikiančiu tik tada, kai yra abi jo pusės: žymė statusline scenarijuje
+    /// ir pats tilto scenarijus. Vien žymės neužtenka – ištrynus scenarijų POM be šios
+    /// patikros amžinai rodytų „Duomenų dar nėra“ ir nesiūlytų prisijungti iš naujo.
+    public static func isConnected(home: URL, fileManager: FileManager = .default) -> Bool {
+        guard fileManager.isExecutableFile(atPath: scriptURL(home: home).path) else { return false }
+        let url = statuslineURL(home: home, fileManager: fileManager)
         guard let contents = try? String(contentsOf: url, encoding: .utf8) else { return false }
         return contents.contains(marker)
+    }
+
+    /// Tiltas duomenis išrenka su `jq`. macOS 14 ir naujesnėse ji būna sisteminė,
+    /// bet pasitaiko kompiuterių, kuriuose jos nėra, ir tada tiltas tyliai nieko nerašo.
+    public static let jqSearchPaths = ["/usr/bin/jq", "/opt/homebrew/bin/jq", "/usr/local/bin/jq"]
+
+    public static func isJQAvailable(
+        searchPaths: [String] = jqSearchPaths, fileManager: FileManager = .default
+    ) -> Bool {
+        searchPaths.contains { fileManager.isExecutableFile(atPath: $0) }
+    }
+
+    // MARK: - Komandos skaidymas
+
+    /// Komanda suskaidoma į žodžius, nuimant kabutes. Visa kabutėmis apgaubta komanda
+    /// laikoma vienu keliu: taip tvarkomi keliai su tarpais.
+    static func tokens(in command: String) -> [String] {
+        let trimmed = command.trimmingCharacters(in: .whitespaces)
+        if let unquoted = unquote(trimmed) { return [unquoted] }
+        return trimmed.split(whereSeparator: \.isWhitespace).map { unquote(String($0)) ?? String($0) }
+    }
+
+    private static func unquote(_ text: String) -> String? {
+        for quote in ["\"", "'"] where text.hasPrefix(quote) && text.hasSuffix(quote) && text.count > 1 {
+            return String(text.dropFirst().dropLast())
+        }
+        return nil
+    }
+
+    private static func expand(_ token: String, home: URL) -> URL {
+        if token == "~" { return home }
+        if token.hasPrefix("~/") {
+            return URL(fileURLWithPath: home.path + String(token.dropFirst(1)))
+        }
+        return URL(fileURLWithPath: token)
     }
 
     /// Paleidžia į paketą įdėtą diegimo scenarijų ir grąžina jo išvestį.

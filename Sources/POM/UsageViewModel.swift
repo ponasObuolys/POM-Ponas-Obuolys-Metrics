@@ -33,11 +33,21 @@ final class UsageViewModel: ObservableObject {
         self.settings = settings
         self.notifications = notifications
         self.tracker = AlertTracker(thresholds: settings.alertPreset.thresholds)
+        self.hasJQ = Bridge.isJQAvailable()
 
         serverSnapshot = serverStore.load()
         reloadLocal(force: true)
         recompute()
         isBridgeConnected = Bridge.isConnected(home: Self.home)
+    }
+
+    /// Be `jq` tiltas duomenų neperduoda, todėl apie jos trūkumą pasakoma ten,
+    /// kur vartotojas laukia skaičių, o ne tyliai.
+    private let hasJQ: Bool
+
+    var jqNote: String? {
+        hasJQ ? nil : "Kompiuteryje nėra jq komandos, be jos duomenys POM nepasieks. "
+            + "Įdiek ją terminale: brew install jq"
     }
 
     private static var home: URL {
@@ -116,15 +126,21 @@ final class UsageViewModel: ObservableObject {
         tick()
     }
 
+    /// Atnaujinimo mygtukas. Vietiniai duomenys perskaitomi visada, o serverio klausiama tik
+    /// tada, kai tai leidžia nustatymai: kitaip mygtukas atrodytų neveikiantis.
     func requestServerRefresh() {
+        now = Date()
+        reloadLocal(force: true)
+        recompute()
         fetchFromServer(manual: true)
     }
 
     private func tick() {
         now = Date()
-        if !isBridgeConnected {
-            isBridgeConnected = Bridge.isConnected(home: Self.home)
-        }
+        // Tikrinama abiem kryptimis: ryšys gali ne tik atsirasti, bet ir dingti,
+        // pavyzdžiui, ištrynus tilto scenarijų.
+        let connected = Bridge.isConnected(home: Self.home)
+        if connected != isBridgeConnected { isBridgeConnected = connected }
         reloadLocal(force: false)
         recompute()
         deliverAlerts()
@@ -186,11 +202,12 @@ final class UsageViewModel: ObservableObject {
         let decision = gate.decide(localCapturedAt: snapshot?.capturedAt, now: now, manual: manual)
 
         guard decision == .fetch else {
-            if decision == .skipDisabled {
+            if manual {
+                // Paspaudus mygtuką visada atsakoma, kodėl serverio neklausiama.
+                serverNote = note(for: decision)
+            } else if decision == .skipDisabled {
                 // Išjungta pačiam vartotojui – aiškinti nėra ko, langelis lieka švarus.
                 serverNote = nil
-            } else if manual {
-                serverNote = note(for: decision)
             }
             return
         }
@@ -208,7 +225,7 @@ final class UsageViewModel: ObservableObject {
                 let fresh = try await client.fetch(token: token)
                 handleSuccess(fresh)
             } catch {
-                handleFailure(error, manual: manual)
+                handleFailure(error)
             }
         }
     }
@@ -223,7 +240,7 @@ final class UsageViewModel: ObservableObject {
         deliverAlerts()
     }
 
-    private func handleFailure(_ error: Error, manual: Bool) {
+    private func handleFailure(_ error: Error) {
         isFetching = false
         gate.recordFailure()
 
@@ -263,7 +280,6 @@ final class UsageViewModel: ObservableObject {
 
         let retryAt = now.addingTimeInterval(gate.backoffInterval)
         serverNote = "Serveris: \(reason). Bandoma vėl \(LTFormat.absolute(retryAt, now: now))."
-        _ = manual
     }
 
     private func note(for decision: ServerFetchGate.Decision) -> String? {

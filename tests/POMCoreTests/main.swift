@@ -248,6 +248,21 @@ checkEqual("šuolis iš karto per abi ribas – praneša tik aukščiausią",
 checkEqual("po šuolio žemesnė riba nebekartojama",
     jumpTracker.check(window: .fiveHour, percentage: 98, resetsAt: date(5000)), nil)
 
+// Perjungus perspėjimų nustatymą pranešimai neturi prasidėti iš naujo.
+var presetTracker = AlertTracker(thresholds: [90, 98])
+checkEqual("kertant 90 % – pranešama",
+    presetTracker.check(window: .fiveHour, percentage: 92, resetsAt: date(5000)), 90)
+presetTracker.updateThresholds([70, 90])
+checkEqual("perjungus į ankstesnį perspėjimą sena riba nekartojama",
+    presetTracker.check(window: .fiveHour, percentage: 92, resetsAt: date(5000)), nil)
+presetTracker.updateThresholds([80, 95])
+checkEqual("dar kartą perjungus taip pat tylima",
+    presetTracker.check(window: .fiveHour, percentage: 92, resetsAt: date(5000)), nil)
+checkEqual("aukštesnė nauja riba vis tiek suveikia",
+    presetTracker.check(window: .fiveHour, percentage: 96, resetsAt: date(5000)), 95)
+checkEqual("langui atsistačius naujos ribos veikia iš pradžių",
+    presetTracker.check(window: .fiveHour, percentage: 85, resetsAt: date(7000)), 80)
+
 // MARK: - Lietuviškas laiko formatavimas
 
 checkEqual("sekundės", LTFormat.countdown(to: date(40), now: date(0)), "po mažiau nei min.")
@@ -371,16 +386,56 @@ do {
     let custom = claude.appendingPathComponent("mano-juosta.sh")
     try #"{"statusLine":{"type":"command","command":"~/.claude/mano-juosta.sh"}}"#
         .write(to: claude.appendingPathComponent("settings.json"), atomically: true, encoding: .utf8)
+    try "#!/bin/bash\necho labas\n".write(to: custom, atomically: true, encoding: .utf8)
     checkEqual(
         "banguotė pakeičiama namų katalogu",
         Bridge.statuslineURL(home: home).path, custom.path)
 
-    try "#!/bin/bash\necho labas\n".write(to: custom, atomically: true, encoding: .utf8)
+    // Tilto scenarijus – antroji ryšio pusė. Be jo duomenys nepasiekia programos.
+    let bridgeScript = Bridge.scriptURL(home: home)
+    func createBridgeScript() throws {
+        try FileManager.default.createDirectory(
+            at: bridgeScript.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try "#!/bin/bash\n".write(to: bridgeScript, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755], ofItemAtPath: bridgeScript.path)
+    }
+
+    try createBridgeScript()
     checkEqual("be žymos – neprijungta", Bridge.isConnected(home: home), false)
 
     try "#!/bin/bash\n\(Bridge.marker)\necho labas\n"
         .write(to: custom, atomically: true, encoding: .utf8)
-    checkEqual("su žyma – prijungta", Bridge.isConnected(home: home), true)
+    checkEqual("su žyma ir scenarijumi – prijungta", Bridge.isConnected(home: home), true)
+
+    try FileManager.default.removeItem(at: bridgeScript)
+    checkEqual(
+        "dingus tilto scenarijui – neprijungta, nors žymė liko",
+        Bridge.isConnected(home: home), false)
+    try createBridgeScript()
+
+    // Komandoje gali būti vykdyklė ir argumentai. Anksčiau tokia komanda būdavo laikoma
+    // failo keliu, todėl POM nerasdavo juostos, o diegimo scenarijus ją perrašydavo.
+    checkEqual(
+        "kelias ištraukiamas iš komandos su argumentais",
+        Bridge.scriptPath(in: "bash ~/.claude/mano-juosta.sh --trumpai", home: home)?.path,
+        custom.path)
+    checkEqual(
+        "kabutėmis apgaubtas kelias atpažįstamas",
+        Bridge.scriptPath(in: "\"\(custom.path)\"", home: home)?.path, custom.path)
+    checkEqual(
+        "neegzistuojančio scenarijaus nespėliojama",
+        Bridge.scriptPath(in: "node /nera/tokio/failo.js --x", home: home) == nil, true)
+    checkEqual(
+        "vien vykdyklės vardas keliu nelaikomas",
+        Bridge.scriptPath(in: "bash", home: home) == nil, true)
+
+    checkEqual(
+        "jq randama pagal nurodytą kelią",
+        Bridge.isJQAvailable(searchPaths: [bridgeScript.path]), true)
+    checkEqual(
+        "jq nerandama, kai jos nėra",
+        Bridge.isJQAvailable(searchPaths: ["/nera/tokio/jq"]), false)
 
     do {
         _ = try Bridge.install(scriptURL: nil)

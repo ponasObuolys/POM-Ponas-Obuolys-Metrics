@@ -8,10 +8,30 @@ settings="$HOME/.claude/settings.json"
 marker_start="# >>> POM (Ponas Obuolys Metrika) >>>"
 marker_end="# <<< POM (Ponas Obuolys Metrika) <<<"
 
+# Komandoje gali būti ne tik pats scenarijus, bet ir vykdyklė su argumentais,
+# todėl imamas pirmas į kelią panašus žodis, kuris tikrai yra esamas failas.
+resolve_script() {
+  local command="$1" token expanded
+  for token in $command; do
+    token="${token%\"}"; token="${token#\"}"
+    token="${token%\'}"; token="${token#\'}"
+    case "$token" in
+      */* | "~"*) ;;
+      *) continue ;;
+    esac
+    expanded="${token/#\~/$HOME}"
+    if [ -f "$expanded" ]; then
+      printf '%s' "$expanded"
+      return 0
+    fi
+  done
+  return 1
+}
+
 statusline=""
 if [ -f "$settings" ] && command -v jq >/dev/null 2>&1; then
   raw=$(jq -r '.statusLine.command // ""' "$settings" 2>/dev/null || echo "")
-  [ -n "$raw" ] && statusline="${raw/#\~/$HOME}"
+  [ -n "$raw" ] && statusline=$(resolve_script "$raw" || true)
 fi
 [ -n "$statusline" ] || statusline="$HOME/.claude/statusline.sh"
 

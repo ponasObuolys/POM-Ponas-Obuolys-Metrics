@@ -9,7 +9,8 @@ set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 app_name="POM"
-version="1.0.0"
+# Ta pati versija kaip ir programos viduje, žr. bundle.sh.
+version="$(tr -d '[:space:]' <"$root/VERSION")"
 
 dist="$root/dist"
 app="$dist/$app_name.app"

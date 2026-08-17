@@ -12,7 +12,9 @@ Priartėjus prie ribos ateina pranešimas.
 ./scripts/bundle.sh && ./scripts/make-dmg.sh
 ```
 
-Gaunamas `dist/POM-1.0.0.dmg`: programa, nuoroda į `/Applications` ir paaiškinimas.
+Gaunamas `dist/POM-<versija>.dmg`: programa, nuoroda į `/Applications` ir paaiškinimas.
+Versija abiem scenarijams imama iš failo `VERSION`, tad programos viduje ir failo
+pavadinime ji visada sutampa.
 
 Gavėjui terminalo nereikia. Įsidėjęs programą į `/Applications`, jis paspaudžia ikoną
 prie laikrodžio ir mygtuką **„Prijungti“** – POM pati prisikabina prie Claude Code
@@ -56,9 +58,23 @@ kuri tas reikšmes nurašo į failą:
 ~/Library/Application Support/POM/snapshot.json
 ```
 
+Failą sudeda `jq`, tad kabutės ir skaičių formatai lieka teisingi net tada, kai atsistatymo
+laikas ateina ne skaičiumi, o tekstu. Be `jq` tiltas duomenų perduoti negali, todėl
+`install-bridge.sh` jos iškart pasigenda ir nutraukia diegimą, o pati programa apie tai
+parašo ten, kur laukiama skaičių.
+
 Rašoma atomiškai (pirma laikinas failas, tada pervadinimas), tad kelios vienu metu
 veikiančios Claude Code sesijos viena kitai netrukdo. Jei sesija limitų duomenų neturi,
 nerašoma nieko, kad nedingtų paskutinė gera reikšmė.
+
+**Kaip tikrinama, ar ryšys gyvas.** Neužtenka žymės statusline scenarijuje: ištrynus tilto
+scenarijų žymė lieka, o duomenys nebeateina. Todėl tikrinamos abi ryšio pusės, ir dingus
+bet kuriai POM vėl pasiūlo mygtuką „Prijungti“.
+
+Nustatymuose nurodyta būsenos juostos komanda gali turėti ir vykdyklę, ir argumentus
+(`bash ~/.claude/juosta.sh --trumpai`). Tokiu atveju scenarijaus kelias iš jos ištraukiamas,
+o neatpažinus komandos nekeičiama nieko: perrašyti svetimą būsenos juostą būtų blogiau
+nei nieko nepadaryti.
 
 **Kodėl seni duomenys vis tiek teisingi.** Limitas auga tik dirbant su Claude. Uždarius
 Claude Code skaičius nebedidėja. Kartu su procentais saugomas ir atsistatymo laikas
@@ -118,9 +134,12 @@ Spalvos: žalia iki 70 %, geltona iki 90 %, raudona nuo 90 %.
 ## Patikra
 
 ```bash
-swift run pom-tests      # 87 patikros
+swift run pom-tests      # POMCore patikros, skaičių parodo pati paleidyklė
 swift build -c release   # be įspėjimų
 ```
+
+Tą patį po kiekvieno pakeitimo padaro ir GitHub (`.github/workflows/patikra.yml`),
+todėl sulaužytas kodas pastebimas iškart, o ne tada, kai kas nors atsisiunčia DMG.
 
 XCTest su komandinės eilutės įrankiais neprieinamas (jis ateina tik su Xcode), todėl
 testai parašyti kaip paleidžiama programa. Radus klaidą ji grąžina ne nulį.

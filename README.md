@@ -8,9 +8,11 @@ Claude 5 valandų ir 7 dienų limitai macOS meniu juostoje.
 
 Paruošta programa: [naujausias leidimas](https://github.com/ponasObuolys/POM-Ponas-Obuolys-Metrics/releases/latest).
 
-Atsisiuntus `POM-1.0.0.dmg`, POM nutempiamas į `Applications`. Pirmą kartą jį reikia
+Atsisiuntus DMG failą, POM nutempiamas į `Applications`. Pirmą kartą jį reikia
 paleisti dešiniu pelės mygtuku → **Open**, nes programa pasirašyta savadarbiu parašu.
 Terminalo nereikia: prie Claude Code POM prisijungia pati, paspaudus mygtuką „Prijungti“.
+
+Reikia macOS 14 ar naujesnės, įdiegtos Claude Code ir `jq` komandos (`brew install jq`).
 
 ## Diegimas iš kodo
 
@@ -18,7 +20,8 @@ Terminalo nereikia: prie Claude Code POM prisijungia pati, paspaudus mygtuką �
 ./scripts/install-bridge.sh && ./scripts/bundle.sh && ./scripts/install.sh
 ```
 
-Dalinimuisi su kitais: `./scripts/make-dmg.sh` sukuria `dist/POM-1.0.0.dmg`.
+Dalinimuisi su kitais: `./scripts/make-dmg.sh` sukuria `dist/POM-<versija>.dmg`.
+Versija imama iš failo [VERSION](VERSION).
 
 Xcode nereikia. Pilnas aprašymas: [claudedocs/README.md](claudedocs/README.md).
 

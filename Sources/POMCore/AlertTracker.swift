@@ -20,11 +20,20 @@ public struct AlertTracker: Sendable {
         self.thresholds = thresholds.sorted()
     }
 
+    /// Pakeitus ribas žymos neišvalomos. Apie ką jau pranešta, antrą kartą pranešti nereikia,
+    /// o kartu praneštomis laikomos ir žemesnės naujos ribos: apie didesnį užimtumą
+    /// vartotojas jau žino, tad priminimas apie mažesnį būtų tik triukšmas.
     public mutating func updateThresholds(_ newValue: [Int]) {
         let sorted = newValue.sorted()
         guard sorted != thresholds else { return }
         thresholds = sorted
-        states.removeAll()
+
+        for (window, state) in states {
+            guard let highest = state.fired.max() else { continue }
+            var updated = state
+            updated.fired.formUnion(sorted.filter { $0 <= highest })
+            states[window] = updated
+        }
     }
 
     /// Grąžina aukščiausią ką tik peržengtą ribą arba `nil`, jei pranešti nereikia.
