@@ -13,7 +13,7 @@ jobs:
 
     steps:
       - name: Parsisiunčiamas kodas
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Swift versija
         run: swift --version
