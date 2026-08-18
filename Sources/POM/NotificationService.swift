@@ -73,11 +73,8 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
 
     var statusNote: String? {
         switch delivery {
-        case .system:
+        case .system, .script:
             return nil
-        case .script:
-            return "Pranešimus perduoda macOS scenarijų įrankis: registruotis pranešimų "
-                + "sistemoje gali tik Apple parašu pasirašytos programos."
         case .unavailable:
             return "Pranešimai veikia tik įdiegus programą į /Applications."
         }
