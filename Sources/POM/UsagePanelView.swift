@@ -63,10 +63,13 @@ struct UsagePanelView: View {
             if model.hasData {
                 WindowRow(title: "5 valandų", window: model.fiveHour, now: model.now)
                 WindowRow(title: "7 dienų", window: model.sevenDay, now: model.now)
-                if let text = model.serverNote { note(text) }
             } else {
                 claudeEmptyState
             }
+
+            // Pastaba apie serverį rodoma ir tada, kai skaičių dar nėra: kaip tik tada
+            // vartotojas spaudžia atnaujinimo mygtuką ir laukia paaiškinimo.
+            if let text = model.serverNote { note(text) }
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 16)
