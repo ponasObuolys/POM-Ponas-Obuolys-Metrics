@@ -13,6 +13,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var popover: NSPopover!
     private var cancellables: Set<AnyCancellable> = []
+    /// Paspaudimų šalia langelio klausytojas. Gyvas tik tol, kol langelis atviras.
+    private var outsideClickMonitor: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         model = UsageViewModel(settings: settings, notifications: notifications)
@@ -143,15 +145,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         popover = NSPopover()
         popover.behavior = .transient
         popover.animates = true
-        popover.contentViewController = NSHostingController(
+
+        let controller = NSHostingController(
             rootView: UsagePanelView(model: model, codex: codex, settings: settings))
+        // Be šito langelio aukštis užsifiksuotų tą akimirką, kai jis sukuriamas.
+        // Codex sekcija atsiranda maždaug sekunde vėliau, gavus atsakymą, ir turinys
+        // nebetelptų: viršuje liktų nukirsta antraštė, o virš jos – nematoma lango dalis.
+        controller.sizingOptions = [.preferredContentSize]
+        popover.contentViewController = controller
+        popover.delegate = self
     }
 
     @objc private func togglePopover() {
         guard let button = statusItem.button else { return }
 
         if popover.isShown {
-            popover.performClose(nil)
+            closePopover()
             return
         }
 
@@ -162,5 +171,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.contentViewController?.view.window?.makeKey()
+        watchForClicksOutside()
+    }
+
+    /// Langelis turi užsidaryti paspaudus bet kur šalia jo.
+    ///
+    /// Vien `NSPopover` savybės `.transient` nepakanka: programa gyvena tik meniu juostoje
+    /// ir kitų langų neturi, tad paspaudimas kitoje vietoje jos ne visada pasiekia.
+    /// Todėl paspaudimų klausomasi tiesiogiai; klausomasi tik tol, kol langelis atviras.
+    private func watchForClicksOutside() {
+        guard outsideClickMonitor == nil else { return }
+        outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+        ) { [weak self] _ in
+            Task { @MainActor in self?.closePopover() }
+        }
+    }
+
+    private func closePopover() {
+        stopWatchingClicks()
+        if popover.isShown { popover.performClose(nil) }
+    }
+
+    private func stopWatchingClicks() {
+        guard let monitor = outsideClickMonitor else { return }
+        NSEvent.removeMonitor(monitor)
+        outsideClickMonitor = nil
+    }
+}
+
+extension AppDelegate: NSPopoverDelegate {
+    /// Langelis gali užsidaryti ir pats, be mūsų komandos. Tada klausytojas turi dingti
+    /// kartu su juo, kitaip jis liktų kabėti ir be reikalo gaudytų kiekvieną paspaudimą.
+    func popoverDidClose(_ notification: Notification) {
+        stopWatchingClicks()
     }
 }
