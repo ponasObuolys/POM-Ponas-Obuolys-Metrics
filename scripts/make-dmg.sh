@@ -30,7 +30,7 @@ ln -s /Applications "$staging/Applications"
 
 cat >"$staging/Skaityk mane.txt" <<'READ'
 POM (Ponas Obuolys Metrika)
-Claude 5 valandų ir 7 dienų limitai macOS meniu juostoje.
+Claude ir Codex limitai macOS meniu juostoje.
 
 
 KAIP ĮDIEGTI
@@ -47,22 +47,30 @@ KAIP ĮDIEGTI
    Taip yra todėl, kad programa nėra pirkta per Apple kūrėjo
    paskyrą. Vienas patvirtinimas, ir daugiau to nebeprašys.
 
-3. Prie laikrodžio atsiras dvi juostelės. Paspausk jas ir
-   spausk „Prijungti“ – POM prisikabins prie Claude Code
-   būsenos juostos. Senoji juosta išsaugoma atsargai.
+3. Prie laikrodžio atsiras juostelės. Paspausk jas ir spausk
+   „Prijungti“ – POM prisikabins prie Claude Code būsenos
+   juostos. Senoji juosta išsaugoma atsargai.
 
 4. Padirbėk su Claude Code. Per pusę minutės pasirodys skaičiai.
+
+Codex jungti nereikia. Jei jis įdiegtas ir prijungtas prie
+paskyros, savaitės limitas atsiras savaime. Jei Codex nėra,
+ta dalis tiesiog nerodoma.
 
 
 KAIP SKAITYTI
 
-Viršutinė juostelė – 5 valandų limitas.
-Apatinė juostelė – 7 dienų limitas.
+Prie laikrodžio matyti vieno įrankio skaičiai, o raidė šalia
+sako, kurio: C – Claude, X – Codex. Kurį rodyti, pasirenkama
+nustatymuose.
+
+Claude turi dvi juosteles: viršutinė – 5 valandų limitas,
+apatinė – 7 dienų. Codex turi vieną – savaitės.
 
 Žalia iki 70 %, geltona iki 90 %, raudona nuo 90 %.
 
-Paspaudus ikoną matyti tikslūs skaičiai, kiek liko ir po kiek
-laiko limitas atsistato.
+Paspaudus ikoną matyti abu įrankiai: tikslūs skaičiai, kiek
+liko ir po kiek laiko limitas atsistato.
 
 
 NEMATAI IKONOS?
@@ -75,8 +83,9 @@ laikydamas Cmd, nutempk ikoną į matomą vietą.
 NUSTATYMAI
 
 Krumpliaračio mygtukas apatiniame dešiniame kampe:
-rodyti likutį vietoj sunaudotos dalies, perspėjimai, paleidimas
-prisijungus prie kompiuterio.
+kurio įrankio skaičius rodyti prie laikrodžio, rodyti likutį
+vietoj sunaudotos dalies, perspėjimai, paleidimas prisijungus
+prie kompiuterio.
 
 
 KAIP PAŠALINTI

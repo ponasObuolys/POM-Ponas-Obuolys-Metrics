@@ -26,3 +26,14 @@ jobs:
 
       - name: Scenarijų sintaksė
         run: bash -n scripts/*.sh
+
+      # Netaisyklingas numeris paaiškėtų tik leidimo metu, kai jau vėlu: DMG pavadinimas
+      # ir programos vidus paimami būtent iš šio failo.
+      - name: Versijos numerio forma
+        run: |
+          version="$(tr -d '[:space:]' <VERSION)"
+          if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "VERSION faile turi būti numeris pavidalu X.Y.Z, dabar yra: $version"
+            exit 1
+          fi
+          echo "Versija: $version"

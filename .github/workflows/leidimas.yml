@@ -1,0 +1,52 @@
+name: Leidimas
+
+# Pažymėjus versiją (pvz., `git tag v2.0.0 && git push origin v2.0.0`), DMG susikuria
+# ir įkeliamas į GitHub leidimus pats. Taip atsisiunčiamas failas visada atitinka tai,
+# kas tuo metu buvo `main` šakoje, o rankinio kėlimo klaidų nebelieka.
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  release:
+    name: DMG ir leidimas
+    runs-on: macos-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Parsisiunčiamas kodas
+        uses: actions/checkout@v5
+
+      # Pirmiausia tikrinamas sutapimas: pažymėta v2.0.0, o VERSION faile likusi 1.3.3
+      # reikštų, kad programos viduje ir DMG pavadinime būtų skirtingi numeriai.
+      - name: Tikrinama, ar žymė atitinka VERSION failą
+        run: |
+          zyme="${GITHUB_REF_NAME#v}"
+          faile="$(tr -d '[:space:]' <VERSION)"
+          if [ "$zyme" != "$faile" ]; then
+            echo "Žymė $GITHUB_REF_NAME neatitinka VERSION failo ($faile)."
+            echo "Pataisyk VERSION arba pažymėk v$faile."
+            exit 1
+          fi
+          echo "Versija: $faile"
+
+      - name: Testai
+        run: swift run pom-tests
+
+      - name: Dedamas paketas
+        run: ./scripts/bundle.sh
+
+      - name: Kuriamas DMG
+        run: ./scripts/make-dmg.sh
+
+      - name: Įkeliamas leidimas
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="$(tr -d '[:space:]' <VERSION)"
+          gh release create "$GITHUB_REF_NAME" \
+            "dist/POM-$version.dmg" \
+            --title "POM $version" \
+            --generate-notes

@@ -1,6 +1,6 @@
 # Codex limitai POM programoje
 
-Data: 2026-08-26. Versija po įgyvendinimo: 1.4.0.
+Data: 2026-08-26. Versija po įgyvendinimo: 2.0.0.
 
 ## Tikslas
 
@@ -141,4 +141,4 @@ Prie `tests/POMCoreTests/main.swift` pridedama:
 
 - README perrašomas, kad minėtų abu įrankius;
 - ikonos paaiškinimas: „Claude ir Codex limitai“;
-- `VERSION`: 1.3.3 → 1.4.0.
+- `VERSION`: 1.3.3 → 2.0.0.
