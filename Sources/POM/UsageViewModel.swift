@@ -91,9 +91,10 @@ final class UsageViewModel: ObservableObject {
         UsageDisplay.freshness(capturedAt: snapshot?.capturedAt, now: now)
     }
 
-    var ageText: String {
-        guard let snapshot else { return "duomenų dar nėra" }
-        return "Atnaujinta " + LTFormat.age(from: snapshot.capturedAt, now: now)
+    /// Trumpas amžius sekcijos antraštei: „prieš 2 min“.
+    var ageShort: String {
+        guard let snapshot else { return "" }
+        return LTFormat.age(from: snapshot.capturedAt, now: now)
     }
 
     var sourceText: String {

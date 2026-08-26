@@ -33,6 +33,21 @@ public enum LTFormat {
         return "prieš \(total / 86400) d."
     }
 
+    /// Limito lango pavadinimas pagal jo trukmę minutėmis: 300 virsta „5 valandų“,
+    /// 10080 – „7 dienų“. Skaitvardžio forma derinama, kad „1 dienos limitas“ neskambėtų
+    /// kaip „1 dienų limitas“.
+    public static func windowTitle(minutes: Int) -> String {
+        guard minutes > 0 else { return "limitas" }
+        if minutes % 1440 == 0 { return counted(minutes / 1440, one: "dienos", many: "dienų") }
+        if minutes % 60 == 0 { return counted(minutes / 60, one: "valandos", many: "valandų") }
+        return counted(minutes, one: "minutės", many: "minučių")
+    }
+
+    private static func counted(_ value: Int, one: String, many: String) -> String {
+        let form = (value % 10 == 1 && value % 100 != 11) ? one : many
+        return "\(value) \(form)"
+    }
+
     /// Užbaigia sakinį tašku. Kai kurie užrašai („po 3 d. 5 val.“) tašką jau turi,
     /// todėl antro dėti nereikia.
     public static func endingWithPeriod(_ text: String) -> String {

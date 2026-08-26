@@ -23,6 +23,10 @@ public struct ServerFetchGate: Equatable, Sendable {
     public var enabled: Bool
     public var staleThreshold: TimeInterval
     public var manualFloor: TimeInterval
+    /// Pauzė po pirmos nesėkmės ir jos lubos. Anthropic serveris užklausas riboja griežtai,
+    /// o vietinis Codex – ne, todėl pauzės ilgis paliktas nustatomas.
+    public var retryInterval: TimeInterval
+    public var maxRetryInterval: TimeInterval
 
     public private(set) var failures: Int = 0
     public private(set) var lastAttempt: Date?
@@ -31,17 +35,21 @@ public struct ServerFetchGate: Equatable, Sendable {
     public init(
         enabled: Bool,
         staleThreshold: TimeInterval = 30 * 60,
-        manualFloor: TimeInterval = 5 * 60
+        manualFloor: TimeInterval = 5 * 60,
+        retryInterval: TimeInterval = ServerFetchGate.baseInterval,
+        maxRetryInterval: TimeInterval = ServerFetchGate.maxInterval
     ) {
         self.enabled = enabled
         self.staleThreshold = staleThreshold
         self.manualFloor = manualFloor
+        self.retryInterval = retryInterval
+        self.maxRetryInterval = maxRetryInterval
     }
 
     public var backoffInterval: TimeInterval {
-        guard failures > 0 else { return Self.baseInterval }
-        let doubled = Self.baseInterval * pow(2, Double(failures - 1))
-        return min(doubled, Self.maxInterval)
+        guard failures > 0 else { return retryInterval }
+        let doubled = retryInterval * pow(2, Double(failures - 1))
+        return min(doubled, maxRetryInterval)
     }
 
     public func decide(localCapturedAt: Date?, now: Date, manual: Bool) -> Decision {

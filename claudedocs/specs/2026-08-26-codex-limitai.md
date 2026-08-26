@@ -79,8 +79,10 @@ Nustatymuose atsiranda pasirinkimas „Ikonoje rodyti: Claude / Codex“. Kairė
 piešiama raidė: `C` (Claude) arba `X` (Codex). Claude režimu lieka dvi juostelių eilutės,
 Codex režimu rodoma viena, vertikaliai centruota.
 
-Kai Codex nepasiekiamas, o nustatymuose pasirinktas Codex, ikona rodo Claude ir pasirinkimas
-grįžta į Claude. Kitaip ikona liktų tuščia be jokio paaiškinimo.
+Kai Codex nepasiekiamas, o nustatymuose pasirinktas Codex, ikona rodo Claude: tuščia ikona be
+jokio paaiškinimo būtų blogiau nei kito įrankio skaičiai. Pats nustatymas neperrašomas, tad
+grįžus Codex viskas atsistato savaime. Pasirinkimo punktas meniu rodomas tik tada, kai Codex
+kompiuteryje yra.
 
 ### Pranešimai
 
@@ -109,6 +111,10 @@ Sąsajos pusėje:
 
 Claude duomenų kelias (`Bridge`, `UsageParser`, `OAuthUsageClient`, `UsageViewModel`)
 nekeičiamas, išskyrus antraštės tekstą ir naują nustatymą.
+
+Bendros dalys papildomos: `AlertTracker.Window` gauna reikšmę `codexWeekly`,
+`LTFormat` – `windowTitle(minutes:)`, o `ServerFetchGate` pauzės ilgis tampa nustatomas
+(Anthropic serveris užklausas riboja griežtai, vietinis Codex – ne).
 
 Iškėlimo priežastis: `UsagePanelView.swift` jau dabar 297 eilučių, o su Codex sekcija
 peraugtų ribą, po kurios failą sunku skaityti ir saugiai taisyti.

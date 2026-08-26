@@ -527,6 +527,211 @@ do {
     failures.append("failo saugyklos testas metė klaidą: \(error)")
 }
 
+// MARK: - Limito lango pavadinimas
+
+checkEqual("lango pavadinimas: savaitė", LTFormat.windowTitle(minutes: 10080), "7 dienų")
+checkEqual("lango pavadinimas: penkios valandos", LTFormat.windowTitle(minutes: 300), "5 valandų")
+checkEqual("lango pavadinimas: viena diena", LTFormat.windowTitle(minutes: 1440), "1 dienos")
+checkEqual("lango pavadinimas: vienuolika dienų", LTFormat.windowTitle(minutes: 11 * 1440), "11 dienų")
+checkEqual("lango pavadinimas: dvidešimt viena diena", LTFormat.windowTitle(minutes: 21 * 1440), "21 dienos")
+checkEqual("lango pavadinimas: minutės", LTFormat.windowTitle(minutes: 45), "45 minučių")
+checkEqual("lango pavadinimas: nežinoma trukmė", LTFormat.windowTitle(minutes: 0), "limitas")
+
+// MARK: - Codex: atsakymo skaitymas
+
+do {
+    let json = """
+    {"id":7,"result":{"rateLimits":{
+      "limitId":"codex","limitName":null,
+      "primary":{"usedPercent":5,"windowDurationMins":10080,"resetsAt":1788292169},
+      "secondary":null,
+      "credits":{"hasCredits":false,"unlimited":false,"balance":"0"},
+      "planType":"prolite"},
+     "rateLimitsByLimitId":{"codex_bengalfox":{
+      "limitId":"codex_bengalfox",
+      "primary":{"usedPercent":90,"windowDurationMins":300,"resetsAt":1787786496}}}}}
+    """
+    let snapshot = try CodexParser.parse(data: Data(json.utf8), capturedAt: date(500))
+    checkClose("codex: procentai", snapshot.window.usedPercentage, 5)
+    checkEqual("codex: lango trukmė", snapshot.windowMinutes, 10080)
+    checkEqual("codex: atsistatymas", snapshot.window.resetsAt, date(1788292169))
+    checkEqual("codex: fiksavimo laikas", snapshot.capturedAt, date(500))
+} catch {
+    failures.append("codex atsakymo skaitymas metė klaidą: \(error)")
+}
+
+// MARK: - Codex: papildomi rinkiniai nepainiojami su pagrindiniu
+
+do {
+    // `rateLimitsByLimitId` gali turėti didesnių reikšmių, bet rodomas tik pagrindinis
+    // rinkinys. Kitaip skaičius šokinėtų priklausomai nuo to, kurį modelį naudojai.
+    let json = """
+    {"result":{"rateLimits":{"primary":{"usedPercent":5,"windowDurationMins":10080}},
+     "rateLimitsByLimitId":{"kitas":{"primary":{"usedPercent":99,"windowDurationMins":10080}}}}}
+    """
+    let snapshot = try CodexParser.parse(data: Data(json.utf8), capturedAt: date(0))
+    checkClose("codex: imamas pagrindinis rinkinys", snapshot.window.usedPercentage, 5)
+    checkEqual("codex: atsistatymo laikas gali būti nežinomas", snapshot.window.resetsAt, nil)
+} catch {
+    failures.append("codex papildomų rinkinių testas metė klaidą: \(error)")
+}
+
+// MARK: - Codex: iš dviejų langų imamas ilgesnis
+
+do {
+    let json = """
+    {"result":{"rateLimits":{
+      "primary":{"usedPercent":12,"windowDurationMins":300,"resetsAt":1788000000},
+      "secondary":{"usedPercent":34,"windowDurationMins":10080,"resetsAt":1788292169}}}}
+    """
+    let snapshot = try CodexParser.parse(data: Data(json.utf8), capturedAt: date(0))
+    checkClose("codex: imamas ilgesnis langas", snapshot.window.usedPercentage, 34)
+    checkEqual("codex: ilgesnio lango trukmė", snapshot.windowMinutes, 10080)
+} catch {
+    failures.append("codex dviejų langų testas metė klaidą: \(error)")
+}
+
+// MARK: - Codex: netinkami duomenys
+
+do {
+    _ = try CodexParser.parse(data: Data("sugadinta".utf8), capturedAt: date(0))
+    failures.append("codex: sugadintas JSON turėjo mesti klaidą")
+} catch {
+    passed += 1
+}
+
+do {
+    let json = #"{"result":{"rateLimits":null}}"#
+    _ = try CodexParser.parse(data: Data(json.utf8), capturedAt: date(0))
+    failures.append("codex: tuščios reikšmės turėjo mesti klaidą")
+} catch CodexParser.ParseError.noLimits {
+    passed += 1
+} catch {
+    failures.append("codex: tuščioms reikšmėms laukta noLimits, gauta \(error)")
+}
+
+do {
+    let json = #"{"error":{"code":-32601,"message":"Method not found"}}"#
+    _ = try CodexParser.parse(data: Data(json.utf8), capturedAt: date(0))
+    failures.append("codex: klaidos atsakymas turėjo mesti klaidą")
+} catch CodexParser.ParseError.rpcError(let message) {
+    checkEqual("codex: klaidos žinutė perduodama", message, "Method not found")
+} catch {
+    failures.append("codex: klaidos atsakymui laukta rpcError, gauta \(error)")
+}
+
+do {
+    // Langas be procentų yra bevertis: geriau klaida negu nulis, kurį vartotojas
+    // palaikytų tikru skaičiumi.
+    let json = #"{"result":{"rateLimits":{"primary":{"windowDurationMins":10080}}}}"#
+    _ = try CodexParser.parse(data: Data(json.utf8), capturedAt: date(0))
+    failures.append("codex: langas be procentų turėjo mesti klaidą")
+} catch CodexParser.ParseError.noLimits {
+    passed += 1
+} catch {
+    failures.append("codex: langui be procentų laukta noLimits, gauta \(error)")
+}
+
+// MARK: - Codex: išsaugotas failas
+
+do {
+    let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appendingPathComponent("pom-codex-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tmp) }
+
+    let file = tmp.appendingPathComponent("codex-snapshot.json")
+    let store = CodexStore(fileURL: file)
+    checkEqual("codex: nesant failo grąžinamas nulinis rezultatas", store.load() == nil, true)
+
+    let original = CodexSnapshot(
+        window: UsageWindow(usedPercentage: 7.5, resetsAt: date(1788292169)),
+        windowMinutes: 10080,
+        capturedAt: date(1787000000))
+    try store.save(original)
+    checkEqual("codex: išsaugota reikšmė perskaitoma", store.load(), original)
+
+    try Data("sugadinta".utf8).write(to: file)
+    checkEqual("codex: sugadintas failas negriauna programos", store.load() == nil, true)
+} catch {
+    failures.append("codex saugyklos testas metė klaidą: \(error)")
+}
+
+// MARK: - Codex: prieinamumas
+
+do {
+    let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appendingPathComponent("pom-codex-vieta-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tmp) }
+
+    let binary = tmp.appendingPathComponent("codex")
+    let auth = tmp.appendingPathComponent("auth.json")
+
+    checkEqual(
+        "codex: be vykdomojo failo laikomas neįdiegtu",
+        CodexLocator.availability(searchPaths: [binary.path], authFile: auth),
+        CodexAvailability.notInstalled)
+
+    try Data("#!/bin/bash\n".utf8).write(to: binary)
+    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: binary.path)
+
+    checkEqual(
+        "codex: be rakto laikomas neprisijungusiu",
+        CodexLocator.availability(searchPaths: [binary.path], authFile: auth),
+        CodexAvailability.signedOut)
+
+    try Data(#"{"auth_mode":"chatgpt","tokens":{"access_token":""}}"#.utf8).write(to: auth)
+    checkEqual(
+        "codex: tuščias raktas neprilygsta prisijungimui",
+        CodexLocator.availability(searchPaths: [binary.path], authFile: auth),
+        CodexAvailability.signedOut)
+
+    try Data(#"{"auth_mode":"chatgpt","tokens":{"access_token":"abc"}}"#.utf8).write(to: auth)
+    checkEqual(
+        "codex: su raktu viskas paruošta",
+        CodexLocator.availability(searchPaths: [binary.path], authFile: auth),
+        CodexAvailability.ready(binary))
+
+    try Data(#"{"OPENAI_API_KEY":"sk-abc"}"#.utf8).write(to: auth)
+    checkEqual(
+        "codex: API raktas taip pat tinka",
+        CodexLocator.availability(searchPaths: [binary.path], authFile: auth),
+        CodexAvailability.ready(binary))
+} catch {
+    failures.append("codex prieinamumo testas metė klaidą: \(error)")
+}
+
+// MARK: - Codex: tikras ryšys
+
+// Ši patikra paleidžia tikrą Codex procesą, todėl priklauso nuo kompiuterio būklės.
+// Įprastame paleidime ji praleidžiama, o rankiniu būdu įjungiama taip:
+//   POM_CODEX_TEST=1 swift run pom-tests
+if ProcessInfo.processInfo.environment["POM_CODEX_TEST"] == "1" {
+    switch CodexLocator.availability() {
+    case .notInstalled:
+        print("· Codex nerastas, tikro ryšio patikra praleista")
+    case .signedOut:
+        print("· Codex neprisijungęs, tikro ryšio patikra praleista")
+    case .ready(let executable):
+        do {
+            let snapshot = try CodexClient().fetch(executable: executable)
+            check(
+                "codex: tikras atsakymas turi procentus",
+                snapshot.window.usedPercentage >= 0 && snapshot.window.usedPercentage <= 100,
+                "gauta \(snapshot.window.usedPercentage)")
+            check(
+                "codex: tikras atsakymas turi lango trukmę", snapshot.windowMinutes > 0,
+                "gauta \(snapshot.windowMinutes)")
+            print(
+                "· Codex atsakė: \(Int(snapshot.window.usedPercentage)) % iš "
+                    + LTFormat.windowTitle(minutes: snapshot.windowMinutes) + " lango")
+        } catch {
+            failures.append("codex: tikras ryšys nepavyko: \(error)")
+        }
+    }
+}
+
 // MARK: - Rezultatas
 
 print("")

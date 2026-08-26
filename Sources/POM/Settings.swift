@@ -27,6 +27,30 @@ enum AlertPreset: String, CaseIterable, Identifiable {
     }
 }
 
+/// Kurio įrankio skaičiai rodomi prie laikrodžio. Vietos ten tiek, kad telpa vienas.
+enum MenuBarSource: String, CaseIterable, Identifiable {
+    case claude
+    case codex
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .claude: return "Claude"
+        case .codex: return "Codex"
+        }
+    }
+
+    /// Raidė ikonoje. „C“ ir „X“ pasirinktos todėl, kad iš tolo aiškiai skiriasi:
+    /// dvi apvalios raidės tokiame dydyje susilietų.
+    var badge: String {
+        switch self {
+        case .claude: return "C"
+        case .codex: return "X"
+        }
+    }
+}
+
 @MainActor
 final class Settings: ObservableObject {
     private enum Key {
@@ -34,6 +58,7 @@ final class Settings: ObservableObject {
         static let serverFallback = "serverFallbackEnabled"
         static let notifications = "notificationsEnabled"
         static let alertPreset = "alertPreset"
+        static let menuBarSource = "menuBarSource"
     }
 
     private let defaults: UserDefaults
@@ -52,6 +77,10 @@ final class Settings: ObservableObject {
 
     @Published var alertPreset: AlertPreset {
         didSet { defaults.set(alertPreset.rawValue, forKey: Key.alertPreset) }
+    }
+
+    @Published var menuBarSource: MenuBarSource {
+        didSet { defaults.set(menuBarSource.rawValue, forKey: Key.menuBarSource) }
     }
 
     private let loginItem = LoginItem()
@@ -81,6 +110,7 @@ final class Settings: ObservableObject {
             Key.serverFallback: false,
             Key.notifications: true,
             Key.alertPreset: AlertPreset.standard.rawValue,
+            Key.menuBarSource: MenuBarSource.claude.rawValue,
         ])
 
         showRemaining = defaults.bool(forKey: Key.showRemaining)
@@ -88,6 +118,8 @@ final class Settings: ObservableObject {
         notificationsEnabled = defaults.bool(forKey: Key.notifications)
         alertPreset =
             AlertPreset(rawValue: defaults.string(forKey: Key.alertPreset) ?? "") ?? .standard
+        menuBarSource =
+            MenuBarSource(rawValue: defaults.string(forKey: Key.menuBarSource) ?? "") ?? .claude
         launchAtLogin = loginItem.isEnabled
     }
 }

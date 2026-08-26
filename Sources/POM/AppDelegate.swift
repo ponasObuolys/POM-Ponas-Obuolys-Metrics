@@ -8,6 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let settings = Settings()
     private let notifications = NotificationService()
     private var model: UsageViewModel!
+    private var codex: CodexViewModel!
 
     private var statusItem: NSStatusItem!
     private var popover: NSPopover!
@@ -15,12 +16,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         model = UsageViewModel(settings: settings, notifications: notifications)
+        codex = CodexViewModel(settings: settings, notifications: notifications)
 
         setUpStatusItem()
         setUpPopover()
 
         // Ikona perpiešiama, kai pasikeičia reikšmės arba nustatymai.
         model.objectWillChange
+            .sink { [weak self] _ in
+                Task { @MainActor in self?.updateLabel() }
+            }
+            .store(in: &cancellables)
+
+        codex.objectWillChange
             .sink { [weak self] _ in
                 Task { @MainActor in self?.updateLabel() }
             }
@@ -41,6 +49,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         model.start()
+        codex.start()
         updateLabel()
 
         Task { await notifications.prepare() }
@@ -48,6 +57,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         model.stop()
+        codex.stop()
     }
 
     // MARK: - Meniu juostos elementas
@@ -57,15 +67,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let button = statusItem.button else { return }
         button.target = self
         button.action = #selector(togglePopover)
-        button.toolTip = "Claude limitai"
+        button.toolTip = "Claude ir Codex limitai"
     }
 
     /// Viskas, nuo ko priklauso piešinys. Sutampant su ankstesniu kartu piešti nereikia.
     private struct LabelKey: Equatable {
-        var five: Int
-        var seven: Int
-        var fiveLevel: UsageLevel
-        var sevenLevel: UsageLevel
+        var badge: String
+        var values: [Int]
+        var levels: [UsageLevel]
         var showRemaining: Bool
         var hasData: Bool
         var isDark: Bool
@@ -73,6 +82,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private var lastLabelKey: LabelKey?
+
+    /// Kurio įrankio skaičiai piešiami. Pasirinkus Codex, bet jo kompiuteryje neradus,
+    /// rodomas Claude: tuščia ikona be jokio paaiškinimo būtų blogiau nei kito įrankio
+    /// skaičiai. Pats nustatymas neperrašomas, tad grįžus Codex viskas atsistato savaime.
+    private var effectiveSource: MenuBarSource {
+        settings.menuBarSource == .codex && codex.isPresent ? .codex : .claude
+    }
 
     /// SwiftUI vaizdas paverčiamas paveikslėliu, o ne dedamas į mygtuką kaip atskiras vaizdas.
     /// Taip išvengiama išsidėstymo ir paspaudimų problemų, o piešinys lieka aštrus.
@@ -85,13 +101,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let isDark = button.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
         let scale = button.window?.backingScaleFactor ?? 2
+        let source = effectiveSource
+        let windows = source == .codex ? [codex.window] : [model.fiveHour, model.sevenDay]
+        let hasData = source == .codex ? codex.hasData : model.hasData
+
         let key = LabelKey(
-            five: Int(model.fiveHour.usedPercentage.rounded()),
-            seven: Int(model.sevenDay.usedPercentage.rounded()),
-            fiveLevel: model.fiveHour.level,
-            sevenLevel: model.sevenDay.level,
+            badge: source.badge,
+            values: windows.map { Int($0.usedPercentage.rounded()) },
+            levels: windows.map(\.level),
             showRemaining: settings.showRemaining,
-            hasData: model.hasData,
+            hasData: hasData,
             isDark: isDark,
             scale: scale
         )
@@ -99,10 +118,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         lastLabelKey = key
 
         let label = MenuBarLabelView(
-            fiveHour: model.fiveHour,
-            sevenDay: model.sevenDay,
+            badge: source.badge,
+            windows: windows,
             showRemaining: settings.showRemaining,
-            hasData: model.hasData
+            hasData: hasData
         )
         .environment(\.colorScheme, isDark ? .dark : .light)
 
@@ -125,7 +144,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         popover.behavior = .transient
         popover.animates = true
         popover.contentViewController = NSHostingController(
-            rootView: UsagePanelView(model: model, settings: settings))
+            rootView: UsagePanelView(model: model, codex: codex, settings: settings))
     }
 
     @objc private func togglePopover() {
@@ -137,6 +156,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         model.refreshNow()
+        codex.refreshNow()
         // Be aktyvavimo langelis kartais užsidaro tą pačią akimirką, nes programa
         // gyvena tik meniu juostoje ir neturi savo lango.
         NSApp.activate(ignoringOtherApps: true)

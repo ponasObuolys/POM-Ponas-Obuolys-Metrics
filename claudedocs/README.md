@@ -1,9 +1,12 @@
 # POM (Ponas Obuolys Metrika)
 
-Claude 5 valandų ir 7 dienų limitai macOS meniu juostoje, prie laikrodžio.
+Claude ir Codex limitai macOS meniu juostoje, prie laikrodžio.
 
-Prie laikrodžio matyti dvi juostelės: viršutinė – 5 valandų limitas, apatinė – 7 dienų.
-Paspaudus atsidaro langelis su tiksliais skaičiais, likučiu ir laiku iki atsistatymo.
+Prie laikrodžio matyti vieno įrankio skaičiai su raide, pasakančia, kurio: `C` (Claude)
+arba `X` (Codex). Claude rodo dvi juosteles (5 valandų ir 7 dienų limitus), Codex – vieną
+(savaitės). Kuris įrankis rodomas, pasirenkama nustatymuose.
+
+Paspaudus atsidaro langelis su abiejų įrankių skaičiais, likučiu ir laiku iki atsistatymo.
 Priartėjus prie ribos ateina pranešimas.
 
 ## Dalinimasis su kitais
@@ -117,12 +120,50 @@ Gavusi HTTP 403 arba 401, POM serverio kelią **užblokuoja visam paleidimo laik
 kartoti nuolatinę klaidą beprasmiška, o be reikalo blaškyti ribojamą adresą – žalinga.
 Langelyje parodoma, kodėl neklausiama.
 
+## Iš kur imami Codex skaičiai
+
+Codex CLI turi vietinį JSON-RPC režimą `codex app-server`. POM trumpam jį paleidžia,
+pasisveikina (`initialize`), paklausia `account/rateLimits/read` ir uždaro. Visas ciklas
+trunka apie sekundę, tad nuolat veikiančio proceso laikyti nereikia.
+
+Prisijungimu rūpinasi pats Codex, todėl POM nereikia nei rakto iš raktinės, nei tinklo
+užklausų, nei `jq`. Klausiama kas 5 minutes, po nesėkmės pauzė didinama 2 min. → 4 min. →
+… iki 30 min. Mygtukas „Atnaujinti“ veikia ne dažniau kaip kartą per pusę minutės.
+
+Rodomas ilgiausias pagrindinio rinkinio langas, praktiškai savaitės. Papildomi rinkiniai
+(`rateLimitsByLimitId`, pavyzdžiui, GPT-5.3-Codex-Spark) sąmoningai praleidžiami: jie
+atsiranda ir dingsta priklausomai nuo naudoto modelio, tad skaičius meniu juostoje šokinėtų
+be jokios vartotojui matomos priežasties.
+
+Paskutinė reikšmė saugoma faile:
+
+```
+~/Library/Application Support/POM/codex-snapshot.json
+```
+
+**Įvestis lieka atvira, kol gaunamas atsakymas.** Tai ne smulkmena: pamatęs įvesties pabaigą
+Codex pokalbį užbaigia ir nespėja nieko atsakyti. Kol taip buvo, POM gaudavo tuščią atsakymą.
+
+**Kaip randamas Codex.** Meniu juostos programa nepaveldi terminalo `PATH`, todėl `codex`
+ieškoma fiksuotuose keliuose (`/opt/homebrew/bin`, `/usr/local/bin`, `~/.local/bin`,
+`~/.bun/bin`, `~/.volta/bin`), o procesui paduodamas `PATH` su Homebrew katalogais: npm
+įdiegtas `codex` yra Node scenarijus, kuris be to nepasileistų.
+
+**Kaip atpažįstama, ar prisijungta.** Tikrinamas `~/.codex/auth.json`: jame turi būti
+netuščias `tokens.access_token` arba `OPENAI_API_KEY`. Taip išvengiama proceso paleidimo
+vien tam, kad sužinotume, jog atsakymo nebus. Tuščia reikšmė prilyginama neprisijungimui:
+toks failas lieka po `codex logout`.
+
+Nesant Codex sekcija langelyje nerodoma visai. Yra jis, bet neprisijungęs – rodomas
+paaiškinimas su komanda `codex login`.
+
 ## Nustatymai
 
 Krumpliaračio mygtukas langelio apačioje:
 
 | Nustatymas | Ką daro |
 |---|---|
+| Ikonoje rodyti (Claude / Codex) | Kurio įrankio skaičiai matomi prie laikrodžio; rodomas tik tada, kai Codex kompiuteryje yra |
 | Ikonoje rodyti, kiek liko | Vietoj sunaudotos dalies rodomas likutis; juostelė ima veikti kaip degalų matuoklis |
 | Perspėti apie besibaigiantį limitą | Pranešimai kertant ribas |
 | Perspėti (anksti / įprastai / vėlai) | 70 % ir 90 %, 80 % ir 95 % arba 90 % ir 98 % |
@@ -173,3 +214,7 @@ security delete-certificate -c "POM Self-Signed"   # jei nebereikia parašo
   užklausas. POM be jo veikia normaliai, tik uždarius Claude Code skaičiai lieka tokie,
   kokie buvo (o tai teisinga, nes nedirbant limitas nedidėja).
 - **Duomenys atsiranda tik po pirmo Claude Code atsakymo.** Iki tol rodoma „Duomenų dar nėra“.
+- **Codex `app-server` pažymėtas kaip eksperimentinis.** Metodas gali pasikeisti kartu su
+  Codex versija. Tokiu atveju POM parodo Codex grąžintą klaidos tekstą ir toliau rodo
+  paskutinę žinomą reikšmę; Claude dalis veikia nepriklausomai.
+- **Codex rodo vieną limitą.** Atskirų modelių rinkiniai (pavyzdžiui, Spark) nerodomi.

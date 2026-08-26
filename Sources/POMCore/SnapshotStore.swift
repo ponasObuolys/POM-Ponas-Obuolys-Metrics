@@ -16,6 +16,11 @@ public enum POMPaths {
     public static var serverCacheFile: URL {
         supportDirectory.appendingPathComponent("server-snapshot.json")
     }
+
+    /// Paskutinė Codex reikšmė, kad ji būtų matoma dar prieš pirmą naują atsakymą.
+    public static var codexCacheFile: URL {
+        supportDirectory.appendingPathComponent("codex-snapshot.json")
+    }
 }
 
 /// Skaito tilto įrašytą failą. Sugadintas failas grąžina `nil`, o ne griauna programą.

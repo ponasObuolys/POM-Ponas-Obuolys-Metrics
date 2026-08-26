@@ -6,6 +6,7 @@ public struct AlertTracker: Sendable {
     public enum Window: String, Hashable, CaseIterable, Sendable {
         case fiveHour
         case sevenDay
+        case codexWeekly
     }
 
     private struct State {
