@@ -17,7 +17,11 @@ trap 'rm -rf "$staging"' EXIT
 ditto "$app" "$staging/POM.app"
 ln -s /Applications "$staging/Applications"
 cp "$root/docs/INSTALL.txt" "$staging/Read Me - Skaityk mane.txt"
-if [[ "${POM_RELEASE:-0}" != 1 ]]; then
+if [[ "${POM_RELEASE:-0}" != 1 && "${POM_PUBLIC_UNNOTARIZED:-0}" == 1 ]]; then
+  printf '%s\n' 'UNNOTARIZED RELEASE — ad-hoc signed, not approved by Apple.' \
+    'macOS may block the first launch. See the release notes and Read Me.' \
+    'NENOTARIZUOTAS LEIDIMAS — macOS gali blokuoti pirmą paleidimą.' > "$staging/UNNOTARIZED BUILD.txt"
+elif [[ "${POM_RELEASE:-0}" != 1 ]]; then
   printf '%s\n' 'DEVELOPMENT BUILD — not notarized. For local testing only.' > "$staging/DEVELOPMENT BUILD.txt"
 fi
 hdiutil create -volname "POM $version" -srcfolder "$staging" -ov -format UDZO "$dmg" >/dev/null

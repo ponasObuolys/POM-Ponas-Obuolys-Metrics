@@ -11,7 +11,7 @@ You can switch immediately in Settings > Language. History shows 30 days of toke
 The first local import runs in small background batches. No API key is required.
 
 If macOS blocks the app, confirm that it came from the official GitHub release.
-Older releases through 2.1.2 are not notarized. Do not disable Gatekeeper.
+This 2.2.1 release and older releases are not Apple-notarized. Do not disable Gatekeeper.
 See the current signing status and installation help in the repository README.
 
 Lietuviškai
@@ -26,7 +26,7 @@ Pirmas vietinių įrašų importas vyksta mažomis porcijomis fone.
 API rakto nereikia.
 
 Jei macOS blokuoja programą, patikrink, ar ji gauta iš oficialaus GitHub leidimo.
-Ankstesni leidimai iki 2.1.2 imtinai nenotarizuoti. Neišjunk Gatekeeper apsaugos.
+Šis 2.2.1 leidimas ir ankstesni leidimai Apple nenotarizuoti. Neišjunk Gatekeeper apsaugos.
 Pasirašymo būsena ir diegimo pagalba pateikta projekto README.
 
 https://github.com/ponasObuolys/POM-Ponas-Obuolys-Metrics

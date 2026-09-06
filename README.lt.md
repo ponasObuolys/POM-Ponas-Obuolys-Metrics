@@ -6,9 +6,9 @@ bei papildomus kreditus.
 
 [English](README.md) · [Atsisiųsti](https://github.com/ponasObuolys/POM-Ponas-Obuolys-Metrics/releases) · [Diegimo pagalba](docs/INSTALL.txt)
 
-> **Kuriama 2.2.1 versija.** Toliau aprašytos funkcijos jau įgyvendintos kode.
-> Viešai paskelbta versija tebėra 2.1.2. Patikimam 2.2 diegimo paketui dar reikia
-> „Developer ID“ sertifikato ir Apple notarizacijos. Kūrimo paketai nenotarizuoti.
+> **[POM 2.2.1 paskelbta](https://github.com/ponasObuolys/POM-Ponas-Obuolys-Metrics/releases/tag/v2.2.1)** Apple silicon ir Intel kompiuteriams.
+> Šis leidimas **Apple nenotarizuotas**, programos parašas — ad-hoc. macOS gali
+> blokuoti pirmą paleidimą. „Developer ID“ pasirašymas ir notarizacija dar neatlikti.
 
 <img src="docs/images/usage-lt.png" width="344" alt="POM lietuviškai: Claude ir Codex limitai, planai ir papildomas naudojimas">
 
@@ -21,7 +21,7 @@ bei papildomus kreditus.
 - **Pranešimai:** pasirenkamos perspėjimų ribos ir pranešimas, kai nauji duomenys patvirtina išnaudoto limito atsistatymą.
 - **7 ir 30 dienų tokenų istorija:** dvi dienos kreivės — Claude ir Codex — bei visų modelių sumos. Claude Code naudojimas skaitomas iš šio Mac, Codex — iš paskyros.
 - **Lietuvių ir anglų kalbos:** automatinis parinkimas pagal kompiuterio pagrindinę kalbą ir perjungimas nustatymuose. Kitoms sistemos kalboms parenkama anglų.
-- **Naujinimai programoje:** Sparkle tikrina pasirašytą naujinimų sąrašą ir leidžia įdiegti naują versiją. Viešam leidimui būtinas „Developer ID“ parašas ir notarizacija.
+- **Naujinimų patikra:** Sparkle skaito pasirašytą naujinimų sąrašą. Šiam nenotarizuotam leidimui atveriamas atsisiuntimo puslapis; tiesioginis diegimas programoje numatytas būsimiems notarizuotiems leidimams.
 
 ![POM naudojimo istorija](docs/images/history-lt.png)
 
@@ -42,13 +42,15 @@ Reikia macOS 14 ar naujesnės ir bent vienos įdiegtos bei prie paskyros prijung
 Pasirenkamam Claude būsenos juostos tiltui reikia `jq`. Claude sąsaja priklauso nuo
 CLI versijos; patikrinta su 2.1.263.
 
-**macOS perspėjimas:** leidimai iki 2.1.2 imtinai nenotarizuoti, todėl kitame
+**macOS perspėjimas:** leidimai iki 2.2.1 imtinai nenotarizuoti, todėl kitame
 kompiuteryje juos gali blokuoti Gatekeeper. Savadarbis sertifikatas to neišsprendžia.
 Neišjunk Gatekeeper apsaugos. Tikslų perspėjimą įvertink pagal
 [Apple paaiškinimą](https://support.apple.com/en-us/102445).
 
-2.1.2 versijoje naujintuvo nėra: pirmąją 2.2 versiją reikės atsisiųsti per DMG.
-Vėlesniems leidimams bus galima naudoti **Ieškoti naujinimų…**.
+2.1.2 versijoje naujintuvo nėra: atsisiųsk 2.2.1 DMG ir pakeisk POM programą
+Applications aplanke. **Ieškoti naujinimų…** tikrina pasirašytą sąrašą; šiam
+leidimui pateikiama rankinio atsisiuntimo nuoroda. EdDSA parašai patvirtina failų
+vientisumą, tačiau neatstoja Apple notarizacijos.
 
 Codex atsistatymo pranešimui reikia aiškaus serverio patvirtinimo, kad įprastas naudojimas vėl leidžiamas. Jei tavo CLI šio lauko nepateikia, POM nesiunčia tokio pranešimo vien pagal procentus.
 

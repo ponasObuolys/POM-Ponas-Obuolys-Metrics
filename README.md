@@ -10,9 +10,9 @@ reset times and extra credits into one small window.
 ![Apple silicon and Intel](https://img.shields.io/badge/Mac-Apple_silicon_%26_Intel-blue)
 ![MIT license](https://img.shields.io/badge/license-MIT-green)
 
-> **2.2.1 development preview.** The features below are implemented in the source tree.
-> The latest published release is still 2.1.2. A trusted 2.2 installer is pending
-> Developer ID signing and Apple notarization; development builds are not notarized.
+> **[POM 2.2.1 is available](https://github.com/ponasObuolys/POM-Ponas-Obuolys-Metrics/releases/tag/v2.2.1)** for Apple silicon and Intel Macs.
+> This release is **not Apple-notarized** and uses an ad-hoc app signature. macOS may
+> block the first launch. Developer ID signing and notarization are still pending.
 
 <p><img src="docs/images/usage-en.png" width="344" alt="POM showing Claude and Codex limits, reset times and extra usage in English"></p>
 
@@ -25,7 +25,7 @@ reset times and extra credits into one small window.
 - **Useful notifications:** configurable low-limit warnings and a notification when fresh data confirms that an exhausted limit has recovered.
 - **7- and 30-day token history:** two daily series, Claude and Codex, with totals across all models. Claude Code usage comes from this Mac; Codex usage comes from your account.
 - **English and Lithuanian:** follows your Mac's primary language, with an immediate manual switch in Settings. Other system languages use English.
-- **In-app updates:** Sparkle checks for updates and offers installation from a signed update feed. Public releases require Developer ID signing and notarization.
+- **Update checks:** Sparkle reads a signed update feed. For this unnotarized release it opens the download page; direct in-app installation is reserved for future notarized releases.
 
 ![POM daily Claude and Codex token usage and period totals](docs/images/history-en.png)
 
@@ -46,14 +46,16 @@ Requires **macOS 14 Sonoma or later** and at least one installed, signed-in CLI:
 [Claude Code](https://code.claude.com/docs/en/overview) or [Codex](https://github.com/openai/codex).
 The optional Claude status-line bridge additionally needs `jq`. The Claude control protocol is version dependent (tested with Claude Code 2.1.263); older versions may need updating.
 
-**macOS warning on older downloads:** releases through 2.1.2 are not notarized. This
+**macOS warning:** releases through 2.2.1 are not notarized. This
 can trigger a Gatekeeper warning on another Mac. A self-signed certificate does not
 solve that. Do not disable Gatekeeper or treat a malware warning as a routine install
 step. Use the [signing status above](#pom--claude--codex-usage-limits-for-macos) and
 [Apple's guidance](https://support.apple.com/en-us/102445) to identify the warning.
 
-Version 2.1.2 has no in-app updater. Moving to the first 2.2 release requires downloading
-its DMG once; later releases can be installed through **Check for Updates…**.
+Version 2.1.2 has no in-app updater. Download the 2.2.1 DMG and replace POM in
+Applications. **Check for Updates…** in 2.2.1 will check the signed feed; this
+release uses an informational link for manual download. EdDSA update signatures
+verify file integrity and do not replace Apple notarization.
 
 Codex recovery notifications require the backend to explicitly report that ordinary usage is allowed. If your CLI omits this field, POM does not claim that access has recovered from percentages alone.
 

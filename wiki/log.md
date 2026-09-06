@@ -33,3 +33,10 @@ Procentų istorija pakeista bendromis Claude ir Codex tokenų sumomis.
 Pridėtas inkrementinis vietinių įrašų indeksas, išmatuota atmintis ir I/O,
 sumos palygintos su nepriklausomu perskaičiavimu.
 Šaltinis: [[wiki/synthesis/pom-2-2-1]].
+
+## 2026-09-06 · 2.2.1 viešas leidimas
+
+Vartotojas aiškiai nurodė „paskelbk“, žinodamas apie notarizacijos trūkumą.
+Paruoštas viešas nenotarizuotas DMG, checksum ir pasirašytas informacinis appcast.
+README LT/EN ir diegimo instrukcijose aiškiai nurodyta būsena. Automatinio
+notarizuoto leidimo patikros lieka galioti.
