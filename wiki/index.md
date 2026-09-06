@@ -19,6 +19,8 @@ sources:
 
 ## Synthesis
 
+- [[wiki/synthesis/apple-distribution-preparation]] – Apple registracijos būsena, notarizacijos parengtis ir bendras istorijos modulis parduotuvės versijoms.
+
 - [[wiki/synthesis/pom-2-2-3]] – Pirmo paleidimo ir atnaujinimų paramos priminimai.
 
 - [[wiki/synthesis/pom-2-2-2]] – Stripe parama programoje ir GitHub.

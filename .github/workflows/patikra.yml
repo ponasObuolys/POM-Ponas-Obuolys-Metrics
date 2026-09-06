@@ -33,6 +33,15 @@ jobs:
       - name: Claude prijungimas ir Fable perdavimas
         run: python3 tests/bridge_tests.py
 
+      - name: Apple leidimo parengtis
+        run: python3 tests/apple_preflight_tests.py
+
+      - name: Companion projektų generatorius
+        run: brew install xcodegen
+
+      - name: Companion importas ir Mac / iOS kompiliacijos
+        run: bash scripts/check-companion.sh --xcode
+
       # Netaisyklingas numeris paaiškėtų tik leidimo metu, kai jau vėlu: DMG pavadinimas
       # ir programos vidus paimami būtent iš šio failo.
       - name: Versijos numerio forma

@@ -5,6 +5,7 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
 : "${POM_SIGN_IDENTITY:?Set a Developer ID Application identity}"
 : "${POM_NOTARY_PROFILE:?Set a notarytool Keychain profile}"
+bash scripts/apple-preflight.sh --verify-notary
 export POM_RELEASE=1
 notary_args=(--keychain-profile "$POM_NOTARY_PROFILE")
 if [[ -n "${POM_NOTARY_KEYCHAIN:-}" ]]; then notary_args+=(--keychain "$POM_NOTARY_KEYCHAIN"); fi

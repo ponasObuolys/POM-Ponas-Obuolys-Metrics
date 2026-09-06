@@ -68,6 +68,14 @@ import POMCore
         let codexDays = keys.enumerated().map { TokenDay(day: $0.element, tokens: Int64([780000, 920000, 1700000, 1200000, 2900000, 2300000, 3600000][$0.offset % 7])) }
         let populated = HistoryService(settings: settings, notifications: notifications, directory: historyDirectory,
             previewClaude: TokenUsageSnapshot(days: claudeDays, updatedAt: now), previewCodex: TokenUsageSnapshot(days: codexDays, updatedAt: now))
+        let reportData = try populated.exportReportData(now: now)
+        let report = try UsageHistoryReport.decode(reportData)
+        precondition(report.entries.map(\.source) == [.claudeCodeLocal, .codexAccount])
+        precondition(report.entries[0].snapshot.days == claudeDays)
+        precondition(report.entries[1].snapshot.days == codexDays)
+        precondition(!FileManager.default.fileExists(atPath: historyDirectory.path), "Export must not scan or save history caches")
+        // Synthetic data only; a reviewable example of the exact export format.
+        try reportData.write(to: output.appendingPathComponent("history-export-example.json"), options: .atomic)
         try render(HistoryView(service: populated, settings: settings), name: "history-english", directory: output, scheme: .light)
         settings.language = .lt
         try render(HistoryView(service: populated, settings: settings), name: "history-lithuanian", directory: output, scheme: .dark)

@@ -1,0 +1,63 @@
+name: POMCompanion
+options:
+  minimumXcodeGenVersion: 2.46.0
+  developmentLanguage: en
+packages:
+  POMCompanion:
+    path: .
+targets:
+  POMCompanion:
+    type: application
+    supportedDestinations: [macOS, iOS]
+    deploymentTarget:
+      macOS: "14.0"
+      iOS: "17.0"
+    sources:
+      - path: App
+        excludes: [Info.plist, Mac.entitlements]
+    dependencies:
+      - package: POMCompanion
+        product: POMCompanionUI
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: lt.ponasobuolys.pom.companion
+        PRODUCT_NAME: POM Companion
+        MARKETING_VERSION: 0.1.0
+        CURRENT_PROJECT_VERSION: 1
+        SWIFT_VERSION: 5.0
+        MACOSX_DEPLOYMENT_TARGET: "14.0"
+        IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+        INFOPLIST_FILE: App/Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: Apple Development
+        "CODE_SIGN_ENTITLEMENTS[sdk=macosx*]": App/Mac.entitlements
+        ENABLE_HARDENED_RUNTIME: YES
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SUPPORTS_MACCATALYST: NO
+        SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: NO
+        ENABLE_USER_SCRIPT_SANDBOXING: YES
+  POMCompanionUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources: [Tests/UI]
+    dependencies:
+      - target: POMCompanion
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: lt.ponasobuolys.pom.companion.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: POMCompanion
+        SWIFT_VERSION: 5.0
+schemes:
+  POMCompanion:
+    build:
+      targets:
+        POMCompanion: all
+    run:
+      config: Debug
+    archive:
+      config: Release
+    test:
+      targets: [POMCompanionUITests]

@@ -1067,6 +1067,81 @@ do {
     checkEqual("support: invalid version leaves state unchanged", policy, saved)
 } catch { failures.append("support reminders: \(error)") }
 
+// MARK: - Portable history reports: trust boundary for future store/mobile imports
+
+do {
+    let now = date(1_800_000_000)
+    let key = UsageDay.key(now)
+    let local = UsageHistoryReport.Entry(source: .claudeCodeLocal, collectionStatus: .complete,
+                                        snapshot: .init(days: [.init(day: key, tokens: 123)], updatedAt: now))
+    let account = UsageHistoryReport.Entry(source: .codexAccount, collectionStatus: .refreshFailed,
+                                          snapshot: .init(days: [.init(day: key, tokens: 456)], updatedAt: now))
+    let report = try UsageHistoryReport(generatedAt: now, entries: [local, account])
+    let encoded = try report.encoded()
+    let decoded = try UsageHistoryReport.decode(encoded)
+    checkEqual("report: round trip preserves source and stale status", decoded, report)
+    checkEqual("report: account totals are not added to local totals", decoded.entries[1].snapshot.total(days: 7, now: now), 456)
+    check("report: small payload", encoded.count < 4096)
+    let text = String(decoding: encoded, as: UTF8.self)
+    check("report: dates are portable ISO strings", text.contains("2027-01-15T08:00:00Z"))
+    check("report: local source is explicit", text.contains("claude_code_local"))
+
+    func rejects(_ name: String, _ mutate: (inout [String: Any]) -> Void) throws {
+        var object = try JSONSerialization.jsonObject(with: encoded) as! [String: Any]
+        mutate(&object)
+        do {
+            _ = try UsageHistoryReport.decode(JSONSerialization.data(withJSONObject: object))
+            check(name, false)
+        } catch { check(name, true) }
+    }
+    try rejects("report: unknown schema rejected") { $0["schemaVersion"] = 2 }
+    try rejects("report: no sources rejected") { $0["entries"] = [] }
+    try rejects("report: duplicate account reports rejected") {
+        let entry = ($0["entries"] as! [[String: Any]])[1]
+        $0["entries"] = [entry, entry]
+    }
+    try rejects("report: unknown Claude account source rejected") {
+        var entries = $0["entries"] as! [[String: Any]]
+        entries[0]["source"] = "claude_account"
+        $0["entries"] = entries
+    }
+    try rejects("report: invalid tokens rejected") {
+        var entries = $0["entries"] as! [[String: Any]]
+        var snapshot = entries[0]["snapshot"] as! [String: Any]
+        snapshot["days"] = [["day": key, "tokens": -1]]
+        entries[0]["snapshot"] = snapshot; $0["entries"] = entries
+    }
+    try rejects("report: overflow-sized totals rejected") {
+        var entries = $0["entries"] as! [[String: Any]]
+        var snapshot = entries[0]["snapshot"] as! [String: Any]
+        snapshot["days"] = [["day": key, "tokens": Int64.max]]
+        entries[0]["snapshot"] = snapshot; $0["entries"] = entries
+    }
+    try rejects("report: duplicate day rejected") {
+        var entries = $0["entries"] as! [[String: Any]]
+        var snapshot = entries[0]["snapshot"] as! [String: Any]
+        snapshot["days"] = [["day": key, "tokens": 1], ["day": key, "tokens": 2]]
+        entries[0]["snapshot"] = snapshot; $0["entries"] = entries
+    }
+    try rejects("report: impossible date rejected") { $0["generatedAt"] = "2027-02-30T00:00:00Z" }
+    try rejects("report: snapshot after export rejected") { $0["generatedAt"] = "2026-01-01T00:00:00Z" }
+    try rejects("report: missing collection status rejected") {
+        var entries = $0["entries"] as! [[String: Any]]
+        entries[0].removeValue(forKey: "collectionStatus"); $0["entries"] = entries
+    }
+    do {
+        _ = try UsageHistoryReport.decode(Data(repeating: 32, count: UsageHistoryReport.maximumBytes + 1))
+        check("report: oversized payload rejected before decoding", false)
+    } catch { checkEqual("report: oversized payload rejected before decoding", error as? UsageHistoryReport.ReportError, .tooLarge) }
+    var extra = try JSONSerialization.jsonObject(with: encoded) as! [String: Any]
+    extra["prompt"] = "PRIVATE-EXTRA-FIELD"
+    let sanitized = try UsageHistoryReport.decode(JSONSerialization.data(withJSONObject: extra)).encoded()
+    check("report: unknown private content not retained", !String(decoding: sanitized, as: UTF8.self).contains("PRIVATE-EXTRA-FIELD"))
+    let partial = UsageHistoryReport.Entry(source: .claudeCodeLocal, collectionStatus: .partial, snapshot: local.snapshot)
+    let partialReport = try UsageHistoryReport(generatedAt: now, entries: [partial])
+    checkEqual("report: partial collection remains partial after transfer", try UsageHistoryReport.decode(partialReport.encoded()).entries[0].collectionStatus, .partial)
+} catch { failures.append("portable history reports: \(error)") }
+
 // MARK: - Rezultatas
 
 print("")

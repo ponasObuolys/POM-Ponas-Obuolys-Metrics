@@ -1,12 +1,16 @@
+import AppKit
 import Charts
 import POMCore
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct HistoryView: View {
     @ObservedObject var service: HistoryService
     @ObservedObject var settings: Settings
     @State private var days = 7
     @State private var selected: Date?
+    @State private var exporting = false
+    @State private var exportFailed = false
 
     init(service: HistoryService, settings: Settings, days: Int = 7) {
         self.service = service; self.settings = settings
@@ -79,6 +83,10 @@ struct HistoryView: View {
                     }
                 }.font(.system(size: 11)).foregroundStyle(.secondary)
                 Spacer(minLength: 12)
+                Button(settings.text("Eksportuoti…", "Export…")) { exportHistory() }
+                    .help(settings.text("Išsaugoti tik naudojimo suvestines ir jų šaltinius JSON faile.",
+                                        "Save usage summaries and their sources to a JSON file."))
+                    .disabled(exporting || (service.claude == nil && service.codex == nil))
                 Button(settings.text("Atnaujinti", "Refresh")) { service.refresh() }
                     .disabled(service.importing || service.fetchingCodex)
             }
@@ -88,6 +96,30 @@ struct HistoryView: View {
         .environment(\.locale, settings.locale)
         .environment(\.timeZone, TimeZone(secondsFromGMT: 0)!)
         .onChange(of: days) { _, _ in selected = nil }
+        .alert(settings.text("Nepavyko eksportuoti", "Export failed"), isPresented: $exportFailed) {
+            Button(settings.text("Gerai", "OK"), role: .cancel) { }
+        } message: {
+            Text(settings.text("Patikrink, ar galima rašyti į pasirinktą aplanką ir ar naudojimo duomenys atnaujinti.",
+                               "Check that the destination is writable and your usage data is up to date."))
+        }
+    }
+
+    private func exportHistory() {
+        do {
+            let data = try service.exportReportData()
+            let panel = NSSavePanel()
+            panel.allowedContentTypes = [.json]
+            panel.nameFieldStringValue = "POM-usage-\(UsageDay.key(Date())).json"
+            panel.message = settings.text("30 dienų suvestinės su šaltiniu ir atnaujinimo laiku. Pokalbių ir prisijungimo duomenų nėra.",
+                                          "30-day summaries with their source and update time. No conversations or credentials.")
+            exporting = true
+            panel.begin { response in
+                defer { exporting = false }
+                guard response == .OK, let url = panel.url else { return }
+                do { try data.write(to: url, options: .atomic) }
+                catch { exportFailed = true }
+            }
+        } catch { exportFailed = true }
     }
 
     private func totalCard(name: String, source: MenuBarSource, snapshot: TokenUsageSnapshot?, color: Color,
