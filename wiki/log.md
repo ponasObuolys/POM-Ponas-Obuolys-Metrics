@@ -40,3 +40,9 @@ Vartotojas aiškiai nurodė „paskelbk“, žinodamas apie notarizacijos trūku
 Paruoštas viešas nenotarizuotas DMG, checksum ir pasirašytas informacinis appcast.
 README LT/EN ir diegimo instrukcijose aiškiai nurodyta būsena. Automatinio
 notarizuoto leidimo patikros lieka galioti.
+
+## 2026-09-06 · 2.2.2 parama
+
+Stripe sukurta aktyvi vienkartinė EUR paramos nuoroda Ponas Obuolys, MB paskyroje.
+Pridėti lokalizuoti programos mygtukai, GitHub Sponsor ir README nuorodos.
+Šaltinis: [[wiki/synthesis/pom-2-2-2]].

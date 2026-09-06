@@ -181,6 +181,14 @@ struct UsagePanelView: View {
 
             Spacer()
 
+            Link(destination: ProjectLinks.support) {
+                Image(systemName: "heart")
+                    .font(.system(size: 12, weight: .medium))
+            }
+            .buttonStyle(IconButtonStyle())
+            .accessibilityLabel(settings.text("Paremti POM", "Support POM"))
+            .help(settings.text("Paremti POM kūrimą per Stripe", "Support POM development via Stripe"))
+
             Button(action: refreshEverything) {
                 Image(systemName: "arrow.clockwise")
                     .font(.system(size: 12, weight: .medium))

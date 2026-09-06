@@ -3,19 +3,25 @@
 ## Current state
 
 As checked on 2026-09-06, this Mac has **no valid Developer ID Application identity**.
-The published 2.2.1 DMG (like 2.1.2) is ad-hoc signed. Its Gatekeeper warning cannot be fixed by
+The published 2.2.2 DMG (like 2.2.1 and 2.1.2) is ad-hoc signed. Its Gatekeeper warning cannot be fixed by
 renaming the DMG, compiling again or creating another self-signed certificate.
-Version 2.2.1 was explicitly authorized for manual publication without notarization.
+Manual publication without notarization was explicitly authorized for 2.2.1 and continued for the 2.2.2 support-link update.
 A notarized release still requires Apple signing credentials.
 
 The automated signed-release pipeline still requires Developer ID and notarization.
-The manual 2.2.1 exception publishes a clearly labelled unnotarized DMG, its SHA-256
+The manual 2.2.1/2.2.2 exception publishes a clearly labelled unnotarized DMG, its SHA-256
 checksum and a signed informational appcast. It does not weaken the automated
 signing/notarization checks. Local builds remain marked as development builds by
 default; `POM_PUBLIC_UNNOTARIZED=1 bash scripts/make-dmg.sh` replaces that package
 notice with an explicit unnotarized-release notice. This flag does not bypass
-`POM_RELEASE=1` checks. The 2.2.1 appcast uses `--informational-update-versions ""`
-and a link to its release page, so Sparkle directs users to manual download.
+`POM_RELEASE=1` checks. These appcasts use `--informational-update-versions ""`
+and a link to the corresponding release page, so Sparkle directs users to manual download.
+
+Creating the 2.2.1 tag also triggered the signed-release workflow. It stopped at
+`Missing required release secret: POM_CERTIFICATE_P12`; source CI passed.
+The manual release assets were verified and published independently. Until Apple
+credentials are configured, tag-triggered signed-release jobs will report this
+missing configuration; do not interpret it as successful notarization.
 
 ## One-time Apple setup
 

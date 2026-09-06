@@ -19,6 +19,8 @@ sources:
 
 ## Synthesis
 
+- [[wiki/synthesis/pom-2-2-2]] – Stripe parama programoje ir GitHub.
+
 - [[wiki/synthesis/pom-2-2-1]] – Bendra tokenų istorija ir išteklių matavimai.
 
 - [[wiki/synthesis/pom-2-2]] – Naujos funkcijos, patikros ir notarizacijos kliūtis.

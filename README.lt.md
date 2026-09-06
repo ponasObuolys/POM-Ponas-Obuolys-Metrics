@@ -6,7 +6,7 @@ bei papildomus kreditus.
 
 [English](README.md) · [Atsisiųsti](https://github.com/ponasObuolys/POM-Ponas-Obuolys-Metrics/releases) · [Diegimo pagalba](docs/INSTALL.txt)
 
-> **[POM 2.2.1 paskelbta](https://github.com/ponasObuolys/POM-Ponas-Obuolys-Metrics/releases/tag/v2.2.1)** Apple silicon ir Intel kompiuteriams.
+> **[POM 2.2.2 paskelbta](https://github.com/ponasObuolys/POM-Ponas-Obuolys-Metrics/releases/tag/v2.2.2)** Apple silicon ir Intel kompiuteriams.
 > Šis leidimas **Apple nenotarizuotas**, programos parašas — ad-hoc. macOS gali
 > blokuoti pirmą paleidimą. „Developer ID“ pasirašymas ir notarizacija dar neatlikti.
 
@@ -42,12 +42,12 @@ Reikia macOS 14 ar naujesnės ir bent vienos įdiegtos bei prie paskyros prijung
 Pasirenkamam Claude būsenos juostos tiltui reikia `jq`. Claude sąsaja priklauso nuo
 CLI versijos; patikrinta su 2.1.263.
 
-**macOS perspėjimas:** leidimai iki 2.2.1 imtinai nenotarizuoti, todėl kitame
+**macOS perspėjimas:** leidimai iki 2.2.2 imtinai nenotarizuoti, todėl kitame
 kompiuteryje juos gali blokuoti Gatekeeper. Savadarbis sertifikatas to neišsprendžia.
 Neišjunk Gatekeeper apsaugos. Tikslų perspėjimą įvertink pagal
 [Apple paaiškinimą](https://support.apple.com/en-us/102445).
 
-2.1.2 versijoje naujintuvo nėra: atsisiųsk 2.2.1 DMG ir pakeisk POM programą
+2.1.2 versijoje naujintuvo nėra: atsisiųsk 2.2.2 DMG ir pakeisk POM programą
 Applications aplanke. **Ieškoti naujinimų…** tikrina pasirašytą sąrašą; šiam
 leidimui pateikiama rankinio atsisiuntimo nuoroda. EdDSA parašai patvirtina failų
 vientisumą, tačiau neatstoja Apple notarizacijos.
@@ -68,6 +68,12 @@ CLI ir išsaugoma šiame Mac. POM nesiunčia istorijos ir neturi analitikos.
 Norint pašalinti podėlį, reikia uždaryti POM ir iš šio aplanko pašalinti tik
 `claude-token-index.sqlite`, `claude-tokens.json` bei `codex-tokens.json`.
 Kitą kartą paleidus programą, duomenys bus surinkti iš naujo.
+
+## Paremti POM
+
+[Prisidėti prie kūrimo per Stripe](https://buy.stripe.com/9B65kE4VZaDL5uI33F6Zy00) galima vienkartine savanoriška parama. Sumą eurais pasirenki pats, siūlomi 5 €. Gavėjas – Ponas Obuolys, MB. Programa lieka nemokama ir atvirojo kodo.
+
+Paramos puslapį taip pat atveria širdelė programos lange arba **Nustatymai → Paremti POM…**. Mokėjimas atliekamas naršyklėje; POM neprideda foninių procesų ir negauna mokėjimo duomenų.
 
 ## Kūrimas
 

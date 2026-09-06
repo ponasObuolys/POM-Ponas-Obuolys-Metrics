@@ -22,7 +22,7 @@ has recovered. The interface follows your Mac's language, supports English and
 Lithuanian, and lets you switch manually. POM is open source and works with your
 existing CLI sign-in; there is no separate API key or POM account.
 
-Publication note: 2.2.1 is publicly downloadable, but not Apple-notarized.
+Publication note: 2.2.2 is publicly downloadable, but not Apple-notarized.
 Keep that limitation visible in download announcements.
 
 ## Aprašymas lietuviškai

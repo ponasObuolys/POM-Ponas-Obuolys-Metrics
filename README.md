@@ -10,7 +10,7 @@ reset times and extra credits into one small window.
 ![Apple silicon and Intel](https://img.shields.io/badge/Mac-Apple_silicon_%26_Intel-blue)
 ![MIT license](https://img.shields.io/badge/license-MIT-green)
 
-> **[POM 2.2.1 is available](https://github.com/ponasObuolys/POM-Ponas-Obuolys-Metrics/releases/tag/v2.2.1)** for Apple silicon and Intel Macs.
+> **[POM 2.2.2 is available](https://github.com/ponasObuolys/POM-Ponas-Obuolys-Metrics/releases/tag/v2.2.2)** for Apple silicon and Intel Macs.
 > This release is **not Apple-notarized** and uses an ad-hoc app signature. macOS may
 > block the first launch. Developer ID signing and notarization are still pending.
 
@@ -46,14 +46,14 @@ Requires **macOS 14 Sonoma or later** and at least one installed, signed-in CLI:
 [Claude Code](https://code.claude.com/docs/en/overview) or [Codex](https://github.com/openai/codex).
 The optional Claude status-line bridge additionally needs `jq`. The Claude control protocol is version dependent (tested with Claude Code 2.1.263); older versions may need updating.
 
-**macOS warning:** releases through 2.2.1 are not notarized. This
+**macOS warning:** releases through 2.2.2 are not notarized. This
 can trigger a Gatekeeper warning on another Mac. A self-signed certificate does not
 solve that. Do not disable Gatekeeper or treat a malware warning as a routine install
 step. Use the [signing status above](#pom--claude--codex-usage-limits-for-macos) and
 [Apple's guidance](https://support.apple.com/en-us/102445) to identify the warning.
 
-Version 2.1.2 has no in-app updater. Download the 2.2.1 DMG and replace POM in
-Applications. **Check for Updates…** in 2.2.1 will check the signed feed; this
+Version 2.1.2 has no in-app updater. Download the 2.2.2 DMG and replace POM in
+Applications. **Check for Updates…** in 2.2.2 will check the signed feed; this
 release uses an informational link for manual download. EdDSA update signatures
 verify file integrity and do not replace Apple notarization.
 
@@ -88,8 +88,14 @@ and Apple's command line tools. `bash scripts/make-dmg.sh` creates a clearly mar
 **development** DMG. This does not make it a trusted public installer.
 
 See the [developer guide](claudedocs/README.md), [release signing guide](docs/RELEASING.md)
-and [2.2.1 release notes](docs/releases/2.2.1.md). Bug reports should include your macOS,
+and [2.2.2 release notes](docs/releases/2.2.2.md). Bug reports should include your macOS,
 POM and CLI versions plus the exact error text; omit credentials and private conversations.
+
+## Support POM
+
+[Support development via Stripe](https://buy.stripe.com/9B65kE4VZaDL5uI33F6Zy00) with an optional, one-time contribution. Choose your amount in EUR (€5 suggested). The recipient is Ponas Obuolys, MB. POM stays free and open source.
+
+You can also use the heart button in the app or **Settings → Support POM…**. Checkout opens in your browser; no payment SDK or background work is added to POM, and payment details stay with Stripe.
 
 ## License
 
