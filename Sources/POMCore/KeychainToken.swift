@@ -78,6 +78,11 @@ public enum KeychainToken {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/security")
         process.arguments = ["find-generic-password", "-s", service, "-w"]
+        if service == claudeCodeService {
+            // Vienai paslaugai gali priklausyti keli įrašai. Be paskyros filtro
+            // galima gauti tik MCP duomenis vietoj naudotojo Claude prisijungimo.
+            process.arguments! += ["-a", NSUserName()]
+        }
 
         let output = Pipe()
         process.standardOutput = output

@@ -11,10 +11,12 @@ struct SettingsMenu: View {
         Menu {
             // Rodyti pasirinkimą, kai Codex kompiuteryje nėra, būtų tuščias pažadas:
             // ikona vis tiek liktų su Claude skaičiais.
-            if codex.isPresent {
+            if codex.isPresent || model.fable != nil {
                 Picker("Ikonoje rodyti", selection: $settings.menuBarSource) {
                     ForEach(MenuBarSource.allCases) { source in
-                        Text(source.title).tag(source)
+                        if source != .codex || codex.isPresent {
+                            Text(source.title).tag(source)
+                        }
                     }
                 }
                 Divider()

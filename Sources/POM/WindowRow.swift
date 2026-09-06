@@ -66,13 +66,16 @@ struct WindowRow: View {
 /// Sekcijos antraštė su šviežumo žyma. Kiekviena sekcija turi savo, nes Claude ir Codex
 /// duomenys ateina skirtingu metu ir vienas gali būti šviežias, kai kitas jau pasenęs.
 struct SectionHeader: View {
-    let title: String
+    let source: MenuBarSource
     let freshness: Freshness
     let detail: String
 
     var body: some View {
         HStack(spacing: 8) {
-            Text(title)
+            ProviderMarkView(source: source)
+                .frame(width: 16, height: 16)
+                .accessibilityHidden(true)
+            Text(source.title.uppercased())
                 .font(.system(size: 11, weight: .semibold))
                 .kerning(0.6)
                 .foregroundStyle(.secondary)

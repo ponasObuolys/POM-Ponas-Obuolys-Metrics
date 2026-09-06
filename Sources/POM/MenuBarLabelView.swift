@@ -1,13 +1,13 @@
 import POMCore
 import SwiftUI
 
-/// Ikona prie laikrodžio: raidė, pasakanti, kurio įrankio skaičiai rodomi, ir juostelės.
+/// Ikona prie laikrodžio: paslaugos ženklas ir limitų juostelės.
 ///
 /// Claude turi du limitus, tad juostelės dvi. Codex rodo vieną, tad ji viena ir centruota.
 /// Trečios eilutės čia sudėti neįmanoma: meniu juostos aukštis fiksuotas, o smulkesnis
 /// šriftas taptų neįskaitomas.
 struct MenuBarLabelView: View {
-    let badge: String
+    let source: MenuBarSource
     let windows: [DisplayWindow]
     let showRemaining: Bool
     let hasData: Bool
@@ -15,17 +15,16 @@ struct MenuBarLabelView: View {
     private let barWidth: CGFloat = 20
     private let barHeight: CGFloat = 3.5
     private let numberWidth: CGFloat = 27
-    private let badgeWidth: CGFloat = 8
+    private let badgeWidth: CGFloat = 18
 
-    static let width: CGFloat = 64
+    static let width: CGFloat = 74
     static let height: CGFloat = 22
 
     var body: some View {
         HStack(spacing: 4) {
-            Text(badge)
-                .font(.system(size: 9, weight: .bold, design: .rounded))
-                .foregroundStyle(.secondary)
-                .frame(width: badgeWidth, alignment: .leading)
+            ProviderMarkView(source: source)
+                .frame(width: badgeWidth, height: badgeWidth)
+                .accessibilityLabel(source.title)
 
             VStack(alignment: .leading, spacing: 3) {
                 ForEach(Array(windows.enumerated()), id: \.offset) { _, window in

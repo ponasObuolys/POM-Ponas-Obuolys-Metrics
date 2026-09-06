@@ -32,11 +32,13 @@ rm -rf "$app"
 mkdir -p "$contents/MacOS" "$contents/Resources"
 cp "$root/.build/release/$app_name" "$contents/MacOS/$app_name"
 cp "$dist/$app_name.icns" "$contents/Resources/$app_name.icns"
+cp -R "$root/.build/release/POM_POM.bundle" "$contents/Resources/POM_POM.bundle"
 
 # Tilto scenarijai keliauja kartu su programa: naujame kompiuteryje POM turi mokėti
 # prisijungti prie Claude Code pati, be terminalo.
 cp "$root/scripts/install-bridge.sh" "$contents/Resources/install-bridge.sh"
 cp "$root/scripts/pom-bridge.sh" "$contents/Resources/pom-bridge.sh"
+cp "$root/scripts/statusline-command.sh" "$contents/Resources/statusline-command.sh"
 chmod +x "$contents/Resources/install-bridge.sh" "$contents/Resources/pom-bridge.sh"
 
 cat >"$contents/Info.plist" <<PLIST

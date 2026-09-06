@@ -25,7 +25,13 @@ jobs:
         run: swift run pom-tests
 
       - name: Scenarijų sintaksė
-        run: bash -n scripts/*.sh
+        run: |
+          for script in scripts/*.sh; do
+            bash -n "$script" || exit 1
+          done
+
+      - name: Claude prijungimas ir Fable perdavimas
+        run: python3 tests/bridge_tests.py
 
       # Netaisyklingas numeris paaiškėtų tik leidimo metu, kai jau vėlu: DMG pavadinimas
       # ir programos vidus paimami būtent iš šio failo.

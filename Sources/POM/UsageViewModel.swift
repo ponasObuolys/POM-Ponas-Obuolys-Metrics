@@ -10,13 +10,24 @@ final class UsageViewModel: ObservableObject {
     /// Ar limitų reikšmės iš Claude Code apskritai pasiekia POM.
     @Published private(set) var isBridgeConnected = false
     @Published private(set) var isConnecting = false
+    @Published private(set) var claudeNote: String?
+    @Published private(set) var fableSnapshot: UsageSnapshot?
+    @Published private(set) var planTitle: String?
 
     let settings: Settings
     let notifications: NotificationService
 
-    private let localStore = SnapshotStore()
-    private let serverStore = SnapshotStore(fileURL: POMPaths.serverCacheFile, source: .server)
+    private let localStore: SnapshotStore
+    private let serverStore: SnapshotStore
+    private let home: URL
     private let client = OAuthUsageClient()
+    private let claudeStore: SnapshotStore
+    private let claudeClient = ClaudeClient()
+    private var claudeSnapshot: UsageSnapshot?
+    private var isFetchingClaude = false
+    private var claudeGate = ServerFetchGate(
+        enabled: true, staleThreshold: 5 * 60, manualFloor: 30,
+        retryInterval: 2 * 60, maxRetryInterval: 30 * 60)
 
     private var localSnapshot: UsageSnapshot?
     private var serverSnapshot: UsageSnapshot?
@@ -29,16 +40,23 @@ final class UsageViewModel: ObservableObject {
     /// Kas kiek tikrinamas failas ir perpiešiama ikona.
     private let tickInterval: TimeInterval = 5
 
-    init(settings: Settings, notifications: NotificationService) {
+    init(settings: Settings, notifications: NotificationService,
+         home: URL = FileManager.default.homeDirectoryForCurrentUser,
+         supportDirectory: URL = POMPaths.supportDirectory) {
+        self.home = home
+        self.localStore = SnapshotStore(fileURL: supportDirectory.appendingPathComponent("snapshot.json"))
+        self.serverStore = SnapshotStore(fileURL: supportDirectory.appendingPathComponent("server-snapshot.json"), source: .server)
+        self.claudeStore = SnapshotStore(fileURL: supportDirectory.appendingPathComponent("claude-snapshot.json"), source: .claudeCLI)
         self.settings = settings
         self.notifications = notifications
         self.tracker = AlertTracker(thresholds: settings.alertPreset.thresholds)
         self.hasJQ = Bridge.isJQAvailable()
 
         serverSnapshot = serverStore.load()
+        claudeSnapshot = claudeStore.load()
         reloadLocal(force: true)
         recompute()
-        isBridgeConnected = Bridge.isConnected(home: Self.home)
+        isBridgeConnected = Bridge.isConnected(home: home)
     }
 
     /// Be `jq` tiltas duomenų neperduoda, todėl apie jos trūkumą pasakoma ten,
@@ -46,12 +64,8 @@ final class UsageViewModel: ObservableObject {
     private let hasJQ: Bool
 
     var jqNote: String? {
-        hasJQ ? nil : "Kompiuteryje nėra jq komandos, be jos duomenys POM nepasieks. "
+        hasJQ ? nil : "Būsenos juostos tiltui reikia jq komandos. "
             + "Įdiek ją terminale: brew install jq"
-    }
-
-    private static var home: URL {
-        FileManager.default.homeDirectoryForCurrentUser
     }
 
     /// Prikabina POM prie Claude Code statusline. Grąžina klaidos tekstą, jei nepavyko.
@@ -65,7 +79,7 @@ final class UsageViewModel: ObservableObject {
             _ = try await Task.detached(priority: .userInitiated) {
                 try Bridge.install(scriptURL: script)
             }.value
-            isBridgeConnected = Bridge.isConnected(home: Self.home)
+            isBridgeConnected = Bridge.isConnected(home: home)
             tick()
             return nil
         } catch {
@@ -87,6 +101,16 @@ final class UsageViewModel: ObservableObject {
         return UsageDisplay.resolve(snapshot.sevenDay, now: now)
     }
 
+    var fable: DisplayWindow? {
+        guard let window = fableSnapshot?.fable else { return nil }
+        return UsageDisplay.resolve(window, now: now)
+    }
+
+    var fableAge: String {
+        guard let fableSnapshot else { return "" }
+        return LTFormat.age(from: fableSnapshot.capturedAt, now: now)
+    }
+
     var freshness: Freshness {
         UsageDisplay.freshness(capturedAt: snapshot?.capturedAt, now: now)
     }
@@ -101,6 +125,7 @@ final class UsageViewModel: ObservableObject {
         switch snapshot?.source {
         case .statusline: return "iš Claude Code"
         case .server: return "iš serverio"
+        case .claudeCLI: return "iš Claude Code"
         case nil: return ""
         }
     }
@@ -133,6 +158,7 @@ final class UsageViewModel: ObservableObject {
         now = Date()
         reloadLocal(force: true)
         recompute()
+        fetchFromClaude(manual: true)
         fetchFromServer(manual: true)
     }
 
@@ -140,11 +166,12 @@ final class UsageViewModel: ObservableObject {
         now = Date()
         // Tikrinama abiem kryptimis: ryšys gali ne tik atsirasti, bet ir dingti,
         // pavyzdžiui, ištrynus tilto scenarijų.
-        let connected = Bridge.isConnected(home: Self.home)
+        let connected = Bridge.isConnected(home: home)
         if connected != isBridgeConnected { isBridgeConnected = connected }
         reloadLocal(force: false)
         recompute()
         deliverAlerts()
+        fetchFromClaude(manual: false)
         fetchFromServer(manual: false)
     }
 
@@ -158,8 +185,60 @@ final class UsageViewModel: ObservableObject {
     }
 
     private func recompute() {
-        let candidates = [localSnapshot, serverSnapshot].compactMap { $0 }
+        let candidates = [localSnapshot, serverSnapshot, claudeSnapshot].compactMap { $0 }
         snapshot = candidates.max { $0.capturedAt < $1.capturedAt }
+        // Bendri šaltiniai gali neturėti Fable lauko. Tik pilnas Claude CLI atsakymas
+        // gali patvirtinti, kad atskiro limito nebėra; bendras atnaujinimas jo nepaslepia.
+        fableSnapshot = candidates.filter { $0.source == .claudeCLI || $0.fable != nil }
+            .max { $0.capturedAt < $1.capturedAt }
+        let type = claudeSnapshot?.plan
+        let localPlan = SubscriptionPlan.claudeLocal(home: home)
+        if type.map({ localPlan?.lowercased().hasPrefix($0.lowercased()) == true }) ?? true {
+            planTitle = localPlan ?? SubscriptionPlan.claude(type: type, tier: nil)
+        } else {
+            planTitle = SubscriptionPlan.claude(type: type, tier: nil)
+        }
+    }
+
+    private func fetchFromClaude(manual: Bool) {
+        guard !isFetchingClaude else { return }
+        guard let executable = ClaudeClient.executable else {
+            claudeNote = "Fable limitui reikia įdiegtos Claude Code komandos."
+            return
+        }
+        let decision = claudeGate.decide(localCapturedAt: claudeSnapshot?.capturedAt, now: now, manual: manual)
+        guard decision == .fetch else {
+            if manual, decision == .skipManualFloor {
+                claudeNote = "Claude galima atnaujinti kartą per pusę minutės."
+            }
+            return
+        }
+        isFetchingClaude = true
+        claudeGate.recordAttempt(at: now)
+        let client = claudeClient
+        Task {
+            do {
+                let fresh = try await Task.detached(priority: .utility) {
+                    try client.fetch(executable: executable)
+                }.value
+                claudeSnapshot = fresh
+                try? claudeStore.save(fresh)
+                claudeGate.recordSuccess()
+                claudeNote = fresh.fable == nil ? "Claude nepateikė atskiro Fable limito." : nil
+                now = Date()
+                recompute()
+                deliverAlerts()
+            } catch {
+                claudeGate.recordFailure()
+                if case ClaudeClient.ClientError.unavailable = error {
+                    claudeNote = "Claude naudojimo duomenys nepasiekiami. Patikrink prisijungimą: claude auth login."
+                } else {
+                    claudeNote = "Nepavyko atnaujinti Claude limitų. "
+                        + "Bandoma vėl \(LTFormat.absolute(now.addingTimeInterval(claudeGate.backoffInterval), now: now))."
+                }
+            }
+            isFetchingClaude = false
+        }
     }
 
     // MARK: - Perspėjimai
@@ -174,6 +253,7 @@ final class UsageViewModel: ObservableObject {
 
         alert(window: .fiveHour, display: fiveHour, name: "5 valandų")
         alert(window: .sevenDay, display: sevenDay, name: "7 dienų")
+        if let fable { alert(window: .fable, display: fable, name: "Fable 7 dienų") }
     }
 
     private func alert(window: AlertTracker.Window, display: DisplayWindow, name: String) {

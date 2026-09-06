@@ -6,15 +6,21 @@ Claude ir Codex limitai macOS meniu juostoje.
 
 ## Ką rodo
 
-Claude: 5 valandų ir 7 dienų limitai. Reikšmės ateina iš Claude Code būsenos juostos,
-o prireikus POM paklausia ir Anthropic serverio.
+Claude: 5 valandų, bendras 7 dienų ir **atskiras Fable savaitės limitas**.
+POM juos gauna iš vietinės Claude Code komandos, kuri pati pasirūpina prisijungimu.
+Užklausa modeliui nesiunčiama. Claude Code būsenos juosta papildomai perduoda
+bendrus limitus dirbant.
 
-Codex: savaitės limitas, tas pats, kurį ChatGPT programa rodo skiltyje „Usage & billing“.
-Nieko jungti nereikia: POM paklausia vietinio Codex ir gauna atsakymą per sekundę.
-Nesant Codex ši dalis tiesiog nerodoma.
+Codex: pagrindinis savaitės limitas. POM paklausia vietinio Codex ir gauna
+paskyros limitus bei ChatGPT plano tipą.
 
-Prie laikrodžio telpa vieno įrankio skaičiai. Kurio – pasirenkama nustatymuose, o raidė
-šalia juostelių primena, kuris tai: `C` arba `X`.
+Langelyje rodomi ir planai, kai paskyra juos pateikia, pavyzdžiui, **Max 20x**
+arba **ChatGPT Pro 5x**. Nežinomas vartojimo daugiklis nėra spėjamas.
+
+Prie laikrodžio telpa vieno pasirinkto įrankio skaičiai: Claude su Anthropic ženklu,
+Fable (`F`) arba Codex su ChatGPT logotipu. Visi limitai matomi paspaudus ikoną.
+Logotipai yra programoje ir prisitaiko prie šviesios bei tamsios meniu juostos.
+Atidarytame lange jie rodomi ir šalia Claude bei Codex pavadinimų.
 
 ## Atsisiuntimas
 
@@ -22,10 +28,13 @@ Paruošta programa: [naujausias leidimas](https://github.com/ponasObuolys/POM-Po
 
 Atsisiuntus DMG failą, POM nutempiamas į `Applications`. Pirmą kartą jį reikia
 paleisti dešiniu pelės mygtuku → **Open**, nes programa pasirašyta savadarbiu parašu.
-Terminalo nereikia: prie Claude Code POM prisijungia pati, paspaudus mygtuką „Prijungti“.
+Prie Claude Code būsenos juostos POM prisikabina paspaudus „Prijungti“.
+Fable duomenis ji gauna ir be šio tilto, jei Claude Code įdiegta bei prijungta prie paskyros.
 
 Reikia macOS 14 ar naujesnės. Claude limitams – įdiegtos Claude Code ir `jq` komandos
-(`brew install jq`), Codex limitams – įdiegto ir prie paskyros prijungto Codex CLI.
+(`brew install jq`) būsenos juostos tiltui. Fable limitui reikia Claude Code
+versijos su `get_usage` valdymo užklausa (patikrinta su 2.1.263).
+Codex limitams – įdiegto ir prie paskyros prijungto Codex CLI.
 Užtenka ir vieno iš jų.
 
 ## Diegimas iš kodo
@@ -42,3 +51,7 @@ Xcode nereikia. Pilnas aprašymas: [claudedocs/README.md](claudedocs/README.md).
 ## Licencija
 
 [MIT](LICENSE).
+
+Anthropic ir OpenAI ženklai priklauso jų savininkams. Logotipų SVG paimti iš
+[Lobe Icons](https://github.com/lobehub/lobe-icons); jų licencija pateikta
+[pranešime apie trečiųjų šalių išteklius](Sources/POM/Resources/THIRD-PARTY-NOTICES.txt).

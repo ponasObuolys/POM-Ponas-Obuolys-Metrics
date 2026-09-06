@@ -57,12 +57,25 @@ struct UsagePanelView: View {
     private var claudeSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             SectionHeader(
-                title: "CLAUDE", freshness: model.freshness,
+                source: .claude, freshness: model.freshness,
                 detail: model.hasData ? model.ageShort : "")
+            if let plan = model.planTitle { planLabel(plan) }
 
             if model.hasData {
                 WindowRow(title: "5 valandų", window: model.fiveHour, now: model.now)
-                WindowRow(title: "7 dienų", window: model.sevenDay, now: model.now)
+                WindowRow(title: "Visi modeliai · 7 dienų", window: model.sevenDay, now: model.now)
+                if let fable = model.fable {
+                    WindowRow(title: "Fable · 7 dienų", window: fable, now: model.now)
+                    if model.fableSnapshot?.capturedAt != model.snapshot?.capturedAt {
+                        note("Fable atnaujinta \(model.fableAge).")
+                    }
+                }
+                if !model.isBridgeConnected {
+                    note(model.snapshot?.source == .claudeCLI
+                         ? "Būsenos juosta neprijungta. Limitus POM gauna tiesiogiai iš Claude Code."
+                         : "Ryšys su būsenos juosta nutrūko. Rodomi paskutiniai gauti skaičiai.", highlighted: true)
+                    ConnectView(model: model, compact: true)
+                }
             } else {
                 claudeEmptyState
             }
@@ -70,6 +83,7 @@ struct UsagePanelView: View {
             // Pastaba apie serverį rodoma ir tada, kai skaičių dar nėra: kaip tik tada
             // vartotojas spaudžia atnaujinimo mygtuką ir laukia paaiškinimo.
             if let text = model.serverNote { note(text) }
+            if let text = model.claudeNote { note(text) }
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 16)
@@ -84,7 +98,7 @@ struct UsagePanelView: View {
                     .foregroundStyle(.secondary)
                 Text("Duomenų dar nėra")
                     .font(.system(size: 13, weight: .medium))
-                Text("Padirbėk su Claude Code, ir per pusę minutės skaičiai atsiras čia.")
+                Text("POM klausia Claude Code. Skaičiai atsiras prisijungus prie paskyros.")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -110,8 +124,9 @@ struct UsagePanelView: View {
     private var codexSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             SectionHeader(
-                title: "CODEX", freshness: codex.freshness,
+                source: .codex, freshness: codex.freshness,
                 detail: codex.hasData ? codex.ageShort : "")
+            if let plan = codex.planTitle { planLabel(plan) }
 
             if codex.isSignedOut {
                 note(codex.signedOutNote, highlighted: true)
@@ -130,6 +145,15 @@ struct UsagePanelView: View {
     }
 
     // MARK: - Apačia
+
+    private func planLabel(_ title: String) -> some View {
+        Text(title)
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Color.primary.opacity(0.05), in: Capsule())
+    }
 
     private var footer: some View {
         HStack(spacing: 8) {

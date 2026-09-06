@@ -30,6 +30,7 @@ enum AlertPreset: String, CaseIterable, Identifiable {
 /// Kurio įrankio skaičiai rodomi prie laikrodžio. Vietos ten tiek, kad telpa vienas.
 enum MenuBarSource: String, CaseIterable, Identifiable {
     case claude
+    case fable
     case codex
 
     var id: String { rawValue }
@@ -37,16 +38,8 @@ enum MenuBarSource: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .claude: return "Claude"
+        case .fable: return "Fable"
         case .codex: return "Codex"
-        }
-    }
-
-    /// Raidė ikonoje. „C“ ir „X“ pasirinktos todėl, kad iš tolo aiškiai skiriasi:
-    /// dvi apvalios raidės tokiame dydyje susilietų.
-    var badge: String {
-        switch self {
-        case .claude: return "C"
-        case .codex: return "X"
         }
     }
 }

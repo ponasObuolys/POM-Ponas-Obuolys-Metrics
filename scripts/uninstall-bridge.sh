@@ -4,36 +4,26 @@
 
 set -euo pipefail
 
-settings="$HOME/.claude/settings.json"
+pom_home="${POM_HOME:-$HOME}"
+settings="$pom_home/.claude/settings.json"
 marker_start="# >>> POM (Ponas Obuolys Metrika) >>>"
 marker_end="# <<< POM (Ponas Obuolys Metrika) <<<"
 
-# Komandoje gali būti ne tik pats scenarijus, bet ir vykdyklė su argumentais,
-# todėl imamas pirmas į kelią panašus žodis, kuris tikrai yra esamas failas.
-resolve_script() {
-  local command="$1" token expanded
-  for token in $command; do
-    token="${token%\"}"; token="${token#\"}"
-    token="${token%\'}"; token="${token#\'}"
-    case "$token" in
-      */* | "~"*) ;;
-      *) continue ;;
-    esac
-    expanded="${token/#\~/$HOME}"
-    if [ -f "$expanded" ]; then
-      printf '%s' "$expanded"
-      return 0
-    fi
-  done
-  return 1
-}
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$script_dir/statusline-command.sh"
 
 statusline=""
 if [ -f "$settings" ] && command -v jq >/dev/null 2>&1; then
-  raw=$(jq -r '.statusLine.command // ""' "$settings" 2>/dev/null || echo "")
-  [ -n "$raw" ] && statusline=$(resolve_script "$raw" || true)
+  raw=$(jq -er 'if type != "object" then error("settings") else
+    (.statusLine.command // "") | if type == "string" then . else error("command") end end' "$settings") || {
+    echo "Claude Code nustatymai netaisyklingi. Nieko nekeista."
+    exit 1
+  }
+  if [ -n "$raw" ]; then
+    statusline=$(resolve_script "$raw") || { echo "Būsenos juostos komanda neatpažinta. Nieko nekeista."; exit 1; }
+  fi
 fi
-[ -n "$statusline" ] || statusline="$HOME/.claude/statusline.sh"
+[ -n "$statusline" ] || statusline="$pom_home/.claude/statusline.sh"
 
 if [ ! -f "$statusline" ]; then
   echo "Statusline scenarijus nerastas ($statusline). Nėra ko šalinti."

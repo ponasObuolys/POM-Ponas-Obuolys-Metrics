@@ -74,7 +74,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Viskas, nuo ko priklauso piešinys. Sutampant su ankstesniu kartu piešti nereikia.
     private struct LabelKey: Equatable {
-        var badge: String
+        var source: MenuBarSource
         var values: [Int]
         var levels: [UsageLevel]
         var showRemaining: Bool
@@ -89,7 +89,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// rodomas Claude: tuščia ikona be jokio paaiškinimo būtų blogiau nei kito įrankio
     /// skaičiai. Pats nustatymas neperrašomas, tad grįžus Codex viskas atsistato savaime.
     private var effectiveSource: MenuBarSource {
-        settings.menuBarSource == .codex && codex.isPresent ? .codex : .claude
+        if settings.menuBarSource == .fable { return .fable }
+        return settings.menuBarSource == .codex && codex.isPresent ? .codex : .claude
     }
 
     /// SwiftUI vaizdas paverčiamas paveikslėliu, o ne dedamas į mygtuką kaip atskiras vaizdas.
@@ -104,11 +105,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let isDark = button.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
         let scale = button.window?.backingScaleFactor ?? 2
         let source = effectiveSource
-        let windows = source == .codex ? [codex.window] : [model.fiveHour, model.sevenDay]
-        let hasData = source == .codex ? codex.hasData : model.hasData
+        let windows: [DisplayWindow]
+        let hasData: Bool
+        switch source {
+        case .claude: windows = [model.fiveHour, model.sevenDay]; hasData = model.hasData
+        case .fable: windows = [model.fable ?? .empty]; hasData = model.fable != nil
+        case .codex: windows = [codex.window]; hasData = codex.hasData
+        }
 
         let key = LabelKey(
-            badge: source.badge,
+            source: source,
             values: windows.map { Int($0.usedPercentage.rounded()) },
             levels: windows.map(\.level),
             showRemaining: settings.showRemaining,
@@ -120,7 +126,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         lastLabelKey = key
 
         let label = MenuBarLabelView(
-            badge: source.badge,
+            source: source,
             windows: windows,
             showRemaining: settings.showRemaining,
             hasData: hasData
@@ -137,6 +143,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         image.isTemplate = false
         button.image = image
         button.imagePosition = .imageOnly
+        button.toolTip = "\(source.title) limitai"
+        button.setAccessibilityLabel("\(source.title) limitai")
     }
 
     // MARK: - Langelis

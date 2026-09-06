@@ -35,12 +35,9 @@ public enum Bridge {
     /// Kur guli Claude Code statusline scenarijus. Pirmiausia žiūrima į nustatymus,
     /// nes vartotojas gali būti nurodęs savo vietą.
     public static func statuslineURL(home: URL, fileManager: FileManager = .default) -> URL {
-        guard let command = configuredCommand(home: home),
-            let script = scriptPath(in: command, home: home, fileManager: fileManager)
-        else {
-            return defaultStatuslineURL(home: home)
-        }
-        return script
+        guard let command = configuredCommand(home: home) else { return defaultStatuslineURL(home: home) }
+        return scriptPath(in: command, home: home, fileManager: fileManager)
+            ?? defaultStatuslineURL(home: home)
     }
 
     /// Claude Code nustatymuose įrašyta būsenos juostos komanda.
@@ -61,18 +58,16 @@ public enum Bridge {
     /// Iš komandos ištraukia scenarijaus kelią.
     ///
     /// Komandoje gali būti ne tik pats scenarijus, bet ir vykdyklė su argumentais
-    /// („bash ~/.claude/juosta.sh --trumpai“). Todėl imamas pirmas į kelią panašus žodis,
-    /// kuris tikrai yra esamas failas. Neradus nė vieno grąžinama `nil`: spėlioti pavojinga,
-    /// nes tada būtų keičiamas visai ne tas failas.
+    /// („/bin/bash \"/Users/vardas/mano juosta.sh\" --trumpai“). Vykdyklė praleidžiama,
+    /// kabutės ir pridengti tarpai perskaitomi, o sudėtinės komandos atmetamos.
     public static func scriptPath(
         in command: String, home: URL, fileManager: FileManager = .default
     ) -> URL? {
-        for token in tokens(in: command) {
-            guard token.contains("/") || token.hasPrefix("~") else { continue }
-            let url = expand(token, home: home)
-            if fileManager.fileExists(atPath: url.path) { return url }
-        }
-        return nil
+        guard let url = StatuslineCommand.script(in: command, home: home) else { return nil }
+        var isDirectory: ObjCBool = false
+        guard fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory), !isDirectory.boolValue
+        else { return nil }
+        return url
     }
 
     /// Ryšys laikomas veikiančiu tik tada, kai yra abi jo pusės: žymė statusline scenarijuje
@@ -80,6 +75,8 @@ public enum Bridge {
     /// patikros amžinai rodytų „Duomenų dar nėra“ ir nesiūlytų prisijungti iš naujo.
     public static func isConnected(home: URL, fileManager: FileManager = .default) -> Bool {
         guard fileManager.isExecutableFile(atPath: scriptURL(home: home).path) else { return false }
+        if let command = configuredCommand(home: home),
+            scriptPath(in: command, home: home, fileManager: fileManager) == nil { return false }
         let url = statuslineURL(home: home, fileManager: fileManager)
         guard let contents = try? String(contentsOf: url, encoding: .utf8) else { return false }
         return contents.contains(marker)
@@ -93,31 +90,6 @@ public enum Bridge {
         searchPaths: [String] = jqSearchPaths, fileManager: FileManager = .default
     ) -> Bool {
         searchPaths.contains { fileManager.isExecutableFile(atPath: $0) }
-    }
-
-    // MARK: - Komandos skaidymas
-
-    /// Komanda suskaidoma į žodžius, nuimant kabutes. Visa kabutėmis apgaubta komanda
-    /// laikoma vienu keliu: taip tvarkomi keliai su tarpais.
-    static func tokens(in command: String) -> [String] {
-        let trimmed = command.trimmingCharacters(in: .whitespaces)
-        if let unquoted = unquote(trimmed) { return [unquoted] }
-        return trimmed.split(whereSeparator: \.isWhitespace).map { unquote(String($0)) ?? String($0) }
-    }
-
-    private static func unquote(_ text: String) -> String? {
-        for quote in ["\"", "'"] where text.hasPrefix(quote) && text.hasSuffix(quote) && text.count > 1 {
-            return String(text.dropFirst().dropLast())
-        }
-        return nil
-    }
-
-    private static func expand(_ token: String, home: URL) -> URL {
-        if token == "~" { return home }
-        if token.hasPrefix("~/") {
-            return URL(fileURLWithPath: home.path + String(token.dropFirst(1)))
-        }
-        return URL(fileURLWithPath: token)
     }
 
     /// Paleidžia į paketą įdėtą diegimo scenarijų ir grąžina jo išvestį.

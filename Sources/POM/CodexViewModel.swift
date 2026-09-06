@@ -16,7 +16,7 @@ final class CodexViewModel: ObservableObject {
 
     private let settings: Settings
     private let notifications: NotificationService
-    private let store = CodexStore()
+    private let store: CodexStore
     private let client = CodexClient()
 
     /// Codex klausiama kas penkias minutes. Jis gyvena tame pačiame kompiuteryje ir užklausų
@@ -34,12 +34,14 @@ final class CodexViewModel: ObservableObject {
     /// Codex limitai matuojami dienomis, tad dažnesnio laikrodžio nereikia.
     private let tickInterval: TimeInterval = 30
 
-    init(settings: Settings, notifications: NotificationService) {
+    init(settings: Settings, notifications: NotificationService,
+         store: CodexStore = CodexStore(), availability: CodexAvailability? = nil) {
+        self.store = store
         self.settings = settings
         self.notifications = notifications
         self.tracker = AlertTracker(thresholds: settings.alertPreset.thresholds)
         self.snapshot = store.load()
-        self.availability = CodexLocator.availability()
+        self.availability = availability ?? CodexLocator.availability()
     }
 
     // MARK: - Rodomos reikšmės
@@ -50,6 +52,8 @@ final class CodexViewModel: ObservableObject {
     var isSignedOut: Bool { availability == .signedOut }
 
     var hasData: Bool { snapshot != nil }
+
+    var planTitle: String? { SubscriptionPlan.codex(snapshot?.planType) }
 
     var window: DisplayWindow {
         guard let snapshot else { return .empty }

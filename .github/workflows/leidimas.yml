@@ -35,6 +35,9 @@ jobs:
       - name: Testai
         run: swift run pom-tests
 
+      - name: Claude prijungimas ir Fable perdavimas
+        run: python3 tests/bridge_tests.py
+
       - name: Dedamas paketas
         run: ./scripts/bundle.sh
 

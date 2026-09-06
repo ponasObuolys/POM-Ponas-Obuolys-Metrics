@@ -2,9 +2,10 @@
 
 Claude ir Codex limitai macOS meniu juostoje, prie laikrodžio.
 
-Prie laikrodžio matyti vieno įrankio skaičiai su raide, pasakančia, kurio: `C` (Claude)
-arba `X` (Codex). Claude rodo dvi juosteles (5 valandų ir 7 dienų limitus), Codex – vieną
-(savaitės). Kuris įrankis rodomas, pasirenkama nustatymuose.
+Prie laikrodžio matyti vieno įrankio skaičiai: Claude žymi Anthropic logotipas,
+Codex – ChatGPT logotipas, o Fable – `F`. Claude rodo dvi juosteles (5 valandų ir 7 dienų limitus),
+Fable ir Codex – po vieną (savaitės). Kuris įrankis rodomas, pasirenkama nustatymuose.
+Vienspalviai SVG yra programos pakete ir prisitaiko prie meniu juostos fono.
 
 Paspaudus atsidaro langelis su abiejų įrankių skaičiais, likučiu ir laiku iki atsistatymo.
 Priartėjus prie ribos ateina pranešimas.
@@ -44,81 +45,62 @@ Pirmas žingsnis nebūtinas, bet naudingas: laikinas (ad-hoc) parašas keičiasi
 perkompiliavimo, todėl macOS kaskart mato tarsi kitą programą ir raktinės leidimo
 „Visada leisti“ neįsimena. Pastovus savadarbis parašas tą išsprendžia.
 
-Atsarginio serverio kelio šiuo metu įjungti nėra kuo, žr. skyrių „Kodėl serverio kelias
-dažniausiai neveiks“.
+Claude bei Fable duomenis POM gauna per vietinę Claude Code komandą.
+Neprisijungus prie paskyros, terminale paleidžiama `claude auth login`.
 
 Jei ikonos prie laikrodžio nematyti, kalta gali būti meniu juostos tvarkyklė
 (**Ice**, Bartender ar panaši): naujus elementus jos paslepia. Ice nustatymuose
 POM reikia perkelti į matomą dalį arba, laikant nuspaudus `⌘`, ikoną nutempti į kairę.
 
-## Iš kur imami skaičiai
+## Iš kur imami Claude ir Fable skaičiai
 
-**Pagrindinis kelias.** Claude Code kas 30 sekundžių paduoda savo statusline scenarijui
-JSON su limitų reikšmėmis. `install-bridge.sh` prie to scenarijaus prikabina vieną eilutę,
-kuri tas reikšmes nurašo į failą:
+**Pagrindinis šaltinis:** trumpas vietinės Claude Code komandos procesas. POM siunčia
+`initialize`, tada `get_usage` valdymo užklausą (patikrinta su Claude Code 2.1.263). Pokalbio žinutė modeliui nesiunčiama;
+įrankiai, papildiniai, projekto nustatymai ir pokalbio išsaugojimas išjungti.
+Claude Code pati tvarko prisijungimą ir rakto atnaujinimą. Tikrinama kas 5 minutes,
+rankiniu būdu ne dažniau nei kas 30 sekundžių. Po klaidos pauzė ilgėja nuo 2 iki 30 minučių.
+Procesui skirtos 25 sekundės; nereaguojantis procesas priverstinai uždaromas.
+
+`five_hour` ir `seven_day` aprašo bendrus limitus. Fable ateina atskirai: `limits`
+masyve kaip `weekly_scoped` su `scope.model.display_name: "Fable"`, arba
+`model_scoped` masyve. Priimami ir `seven_day_fable` bei ankstesnis
+`seven_day_overage_included` formatas. Fable nėra painiojamas su Opus ar bendru limitu.
+Trūkstamas Fable skaičius nelaikomas nuliu.
+
+Paskutinis atsakymas saugomas:
 
 ```
-~/Library/Application Support/POM/snapshot.json
+~/Library/Application Support/POM/claude-snapshot.json
 ```
 
-Failą sudeda `jq`, tad kabutės ir skaičių formatai lieka teisingi net tada, kai atsistatymo
-laikas ateina ne skaičiumi, o tekstu. Be `jq` tiltas duomenų perduoti negali, todėl
-`install-bridge.sh` jos iškart pasigenda ir nutraukia diegimą, o pati programa apie tai
-parašo ten, kur laukiama skaičių.
+**Papildomas vietinis šaltinis:** Claude Code būsenos juosta. `install-bridge.sh`
+prie jos scenarijaus prideda duomenų perdavimą į `snapshot.json`. Tilto failui sudaryti
+reikia `jq`. Jei būsimos Claude Code versijos būsenos juostoje pateiks Fable duomenis,
+POM tiltas juos irgi perduos. Šviežesni bendri duomenys nepanaikina atskiro Fable skaičiaus;
+jiems saugomi atskiri gavimo laikai.
 
-Rašoma atomiškai (pirma laikinas failas, tada pervadinimas), tad kelios vienu metu
-veikiančios Claude Code sesijos viena kitai netrukdo. Jei sesija limitų duomenų neturi,
-nerašoma nieko, kad nedingtų paskutinė gera reikšmė.
+Prijungimas atpažįsta scenarijų su tarpais kelyje, kabutėmis ir aiškiai nurodyta vykdykle,
+pavyzdžiui, `/bin/bash "/Users/vardas/.claude/mano juosta.sh"`. Komandos tekstas niekada nevykdomas
+kelio paieškai. Sudėtinės ir neatpažintos komandos paliekamos naudotojui.
+Prieš pakeičiant scenarijų sukuriama atsarginė kopija. Nutrūkus tiltui, mygtukas
+„Prijungti“ rodomas ir tada, kai išlikę ankstesni skaičiai.
 
-**Kaip tikrinama, ar ryšys gyvas.** Neužtenka žymės statusline scenarijuje: ištrynus tilto
-scenarijų žymė lieka, o duomenys nebeateina. Todėl tikrinamos abi ryšio pusės, ir dingus
-bet kuriai POM vėl pasiūlo mygtuką „Prijungti“.
+**Pasirenkamas atsarginis šaltinis:** tiesioginis Anthropic `/api/oauth/usage` adresas.
+Jis iš pradžių išjungtas. Užklausos ribojamos, o po HTTP 401 ar HTTP 403 klaidos
+nebekartojamos iki kito POM paleidimo. Šio kelio Fable rodymui įjungti nereikia.
+POM savas raktinės įrašas turi pirmenybę; Claude Code įrašas parenkamas pagal
+paslaugą ir macOS naudotojo vardą, kad nebūtų paimtas kitos paskyros įrašas.
 
-Nustatymuose nurodyta būsenos juostos komanda gali turėti ir vykdyklę, ir argumentus
-(`bash ~/.claude/juosta.sh --trumpai`). Tokiu atveju scenarijaus kelias iš jos ištraukiamas,
-o neatpažinus komandos nekeičiama nieko: perrašyti svetimą būsenos juostą būtų blogiau
-nei nieko nepadaryti.
+## Planų pavadinimai
 
-**Kodėl seni duomenys vis tiek teisingi.** Limitas auga tik dirbant su Claude. Uždarius
-Claude Code skaičius nebedidėja. Kartu su procentais saugomas ir atsistatymo laikas
-(`resets_at`), tad praėjus tam momentui POM parodo „limitas atsistatė“, o ne pasenusį skaičių.
+Claude bendras plano tipas gaunamas iš `get_usage`, o tikslus Max daugiklis iš vietinio
+`.claude.json` paskyros aprašo (`userRateLimitTier` arba `organizationRateLimitTier`).
+Skaitomi plano laukai, ne pokalbių turinys. Max 5x ir Max 20x atskiriami pagal aiškią
+reikšmę; nežinant daugiklio rodoma tik „Max“.
 
-**Atsarginis kelias.** Kai vietiniai duomenys senesni nei 30 minučių, POM gali paklausti
-Anthropic serverio (`/api/oauth/usage`). Kreipiamasi retai, nes serveris užklausas riboja
-griežtai: po klaidos pauzė didinama 30 min. → 1 val. → 2 val. Mygtukas „Atnaujinti“ veikia
-ne dažniau kaip kartą per 5 minutes.
-
-Raktas ieškomas dviejose vietose, tokia tvarka:
-
-1. **POM savas įrašas** `POM-claude-token` – jį užpildo `./scripts/set-token.sh`.
-2. **Claude Code įrašas** `Claude Code-credentials`, laukas `claudeAiOauth.accessToken`.
-
-Antrasis kelias veikia ne visur: kai kuriuose kompiuteriuose tame įraše guli tik MCP
-serverių raktai (Notion, Linear, Vercel), o Claude prenumeratos rakto nėra. Todėl POM
-ima **tik tiksliai nurodytą lauką** ir niekada neieško „bet kokio rakto“: svetimo
-paslaugos rakto išsiuntimas Anthropic serveriui būtų rimta klaida.
-
-Raktas skaitomas per sisteminę komandą `/usr/bin/security` ir tik skaitomas, niekada
-nekeičiamas. Nė vieno rakto neradus, langelyje apie tai pranešama, o skaičiai toliau
-imami iš Claude Code. Programa dėl to neveikia blogiau.
-
-### Kodėl serverio kelias dažniausiai neveiks
-
-Patikrinta praktiškai, `./scripts/diagnose-token.sh` pagalba:
-
-| Užklausa | Atsakymas |
-|---|---|
-| `/v1/models` su `claude setup-token` raktu | HTTP 200, raktas veikia |
-| `/api/oauth/profile` su tuo pačiu raktu | HTTP 403, `OAuth token does not meet scope requirement any_of(user:profile, user:office)` |
-| `/api/oauth/usage` su tuo pačiu raktu | HTTP 403 (vėliau 429 dėl užklausų ribojimo) |
-
-Išvada: `claude setup-token` duoda raktą pokalbiams su modeliu, o limitų peržiūrai reikia
-atskiros `user:profile` teisės, kurios jame nėra. Tokią teisę turi tik įprasto prisijungimo
-metu sukurtas raktas, o jis guli ne visur pasiekiamoje vietoje.
-
-Gavusi HTTP 403 arba 401, POM serverio kelią **užblokuoja visam paleidimo laikui**:
-kartoti nuolatinę klaidą beprasmiška, o be reikalo blaškyti ribojamą adresą – žalinga.
-Langelyje parodoma, kodėl neklausiama.
+Codex `planType` išsaugomas kartu su limitu. `prolite` rodomas kaip „ChatGPT Pro 5x“,
+`pro` kaip „ChatGPT Pro 20x“. Tai paskyros planas; laikinos papildomo vartojimo akcijos
+iš šio kodo nenustatomos. Nežinomas plano kodas nėra pakeičiamas spėjimu.
 
 ## Iš kur imami Codex skaičiai
 
@@ -130,8 +112,9 @@ Prisijungimu rūpinasi pats Codex, todėl POM nereikia nei rakto iš raktinės, 
 užklausų, nei `jq`. Klausiama kas 5 minutes, po nesėkmės pauzė didinama 2 min. → 4 min. →
 … iki 30 min. Mygtukas „Atnaujinti“ veikia ne dažniau kaip kartą per pusę minutės.
 
-Rodomas ilgiausias pagrindinio rinkinio langas, praktiškai savaitės. Papildomi rinkiniai
-(`rateLimitsByLimitId`, pavyzdžiui, GPT-5.3-Codex-Spark) sąmoningai praleidžiami: jie
+Rodomas ilgiausias pagrindinio rinkinio langas, praktiškai savaitės. Pirmenybė teikiama
+`rateLimitsByLimitId.codex`; senesniems atsakymams naudojamas `rateLimits`. Papildomi
+modelių rinkiniai (pavyzdžiui, GPT-5.3-Codex-Spark) praleidžiami: jie
 atsiranda ir dingsta priklausomai nuo naudoto modelio, tad skaičius meniu juostoje šokinėtų
 be jokios vartotojui matomos priežasties.
 
@@ -163,7 +146,7 @@ Krumpliaračio mygtukas langelio apačioje:
 
 | Nustatymas | Ką daro |
 |---|---|
-| Ikonoje rodyti (Claude / Codex) | Kurio įrankio skaičiai matomi prie laikrodžio; rodomas tik tada, kai Codex kompiuteryje yra |
+| Ikonoje rodyti (Claude / Fable / Codex) | Kurio įrankio skaičiai matomi prie laikrodžio; rodomas, kai prieinamas Codex arba Fable |
 | Ikonoje rodyti, kiek liko | Vietoj sunaudotos dalies rodomas likutis; juostelė ima veikti kaip degalų matuoklis |
 | Perspėti apie besibaigiantį limitą | Pranešimai kertant ribas |
 | Perspėti (anksti / įprastai / vėlai) | 70 % ir 90 %, 80 % ir 95 % arba 90 % ir 98 % |
@@ -175,8 +158,11 @@ Spalvos: žalia iki 70 %, geltona iki 90 %, raudona nuo 90 %.
 ## Patikra
 
 ```bash
+python3 tests/bridge_tests.py  # tikras tilto diegimas ir pašalinimas laikinuose kataloguose
 swift run pom-tests      # POMCore patikros, skaičių parodo pati paleidyklė
 swift build -c release   # be įspėjimų
+bash scripts/check-ui.sh  # tikri SwiftUI vaizdai ir atkuriamo ryšio patikra
+POM_CLAUDE_TEST=1 POM_CODEX_TEST=1 swift run pom-tests  # tikros paskyrų užklausos
 ```
 
 Tą patį po kiekvieno pakeitimo padaro ir GitHub (`.github/workflows/patikra.yml`),
@@ -209,11 +195,11 @@ security delete-certificate -c "POM Self-Signed"   # jei nebereikia parašo
   ikona lieka scenarijų įrankio. Turint Apple kūrėjo parašą programa pati pereitų
   prie įprasto kelio, kodo keisti nereikėtų.
 - **Widget'ų nėra.** Jiems reikia Xcode ir kūrėjo parašo, o atsinaujintų jie retai.
-- **Serverio adresas neoficialus ir praktiškai nepasiekiamas.** Reikalauja `user:profile`
-  teisės, kurios `claude setup-token` raktas neturi, o pats adresas griežtai riboja
-  užklausas. POM be jo veikia normaliai, tik uždarius Claude Code skaičiai lieka tokie,
-  kokie buvo (o tai teisinga, nes nedirbant limitas nedidėja).
-- **Duomenys atsiranda tik po pirmo Claude Code atsakymo.** Iki tol rodoma „Duomenų dar nėra“.
+- **Claude `get_usage` priklauso nuo Claude Code versijos.** Tai vietinė valdymo
+  sąsaja. Pasikeitus jos protokolui POM išlaiko paskutinius duomenis ir parodo
+  atnaujinimo klaidą. Būsenos juostos tiltas toliau gali perduoti bendrus limitus.
+- **Neprisijungus prie Claude Code, Fable reikšmės nebus.** Pats tiltas negali
+  papildyti duomenų, kurių Claude Code į jo įvestį neįtraukia.
 - **Codex `app-server` pažymėtas kaip eksperimentinis.** Metodas gali pasikeisti kartu su
   Codex versija. Tokiu atveju POM parodo Codex grąžintą klaidos tekstą ir toliau rodo
   paskutinę žinomą reikšmę; Claude dalis veikia nepriklausomai.

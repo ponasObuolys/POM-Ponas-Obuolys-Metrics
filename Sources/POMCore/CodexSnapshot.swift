@@ -10,11 +10,13 @@ public struct CodexSnapshot: Equatable, Sendable {
     /// Lango trukmė minutėmis: 10080 yra savaitė, 300 – penkios valandos.
     public let windowMinutes: Int
     public let capturedAt: Date
+    public let planType: String?
 
-    public init(window: UsageWindow, windowMinutes: Int, capturedAt: Date) {
+    public init(window: UsageWindow, windowMinutes: Int, capturedAt: Date, planType: String? = nil) {
         self.window = window
         self.windowMinutes = windowMinutes
         self.capturedAt = capturedAt
+        self.planType = planType
     }
 }
 
@@ -45,7 +47,8 @@ public enum CodexParser {
         guard let (window, minutes) = longestWindow(in: limits) else { throw ParseError.noLimits }
 
         let captured = decodeDate(firstValue(root, ["captured_at", "capturedAt"])) ?? capturedAt
-        return CodexSnapshot(window: window, windowMinutes: minutes, capturedAt: captured)
+        return CodexSnapshot(window: window, windowMinutes: minutes, capturedAt: captured,
+                             planType: firstValue(limits, ["planType", "plan_type"]) as? String)
     }
 
     // MARK: - Pagalbinės
@@ -53,6 +56,11 @@ public enum CodexParser {
     /// Limitų objektas gali gulėti trijose vietose: JSON-RPC atsakyme, jo viduje esančiame
     /// `rateLimits` lauke arba pačiame POM išsaugotame faile.
     private static func rateLimits(in root: [String: Any]) -> [String: Any]? {
+        let body = root["result"] as? [String: Any] ?? root
+        if let buckets = body["rateLimitsByLimitId"] as? [String: Any],
+            let codex = buckets["codex"] as? [String: Any] {
+            return codex
+        }
         if let result = root["result"] as? [String: Any],
             let limits = result["rateLimits"] as? [String: Any] ?? result["rate_limits"]
                 as? [String: Any]
@@ -166,6 +174,7 @@ public struct CodexStore: Sendable {
         if let resetsAt = snapshot.window.resetsAt {
             payload["resets_at"] = resetsAt.timeIntervalSince1970
         }
+        if let planType = snapshot.planType { payload["planType"] = planType }
         let data = try JSONSerialization.data(withJSONObject: payload, options: [])
 
         let temporary = directory.appendingPathComponent("\(fileURL.lastPathComponent).\(getpid()).tmp")

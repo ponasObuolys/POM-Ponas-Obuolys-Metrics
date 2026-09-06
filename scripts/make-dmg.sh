@@ -51,7 +51,9 @@ KAIP ĮDIEGTI
    „Prijungti“ – POM prisikabins prie Claude Code būsenos
    juostos. Senoji juosta išsaugoma atsargai.
 
-4. Padirbėk su Claude Code. Per pusę minutės pasirodys skaičiai.
+4. Jei Claude Code prijungta prie paskyros, skaičiai atsiras savaime.
+   Fable savaitės limitas rodomas atskirai. Reikia Claude Code
+   su get_usage valdymo užklausa (patikrinta su 2.1.263).
 
 Codex jungti nereikia. Jei jis įdiegtas ir prijungtas prie
 paskyros, savaitės limitas atsiras savaime. Jei Codex nėra,
@@ -60,17 +62,17 @@ ta dalis tiesiog nerodoma.
 
 KAIP SKAITYTI
 
-Prie laikrodžio matyti vieno įrankio skaičiai, o raidė šalia
-sako, kurio: C – Claude, X – Codex. Kurį rodyti, pasirenkama
-nustatymuose.
+Prie laikrodžio matyti vieno įrankio skaičiai: Anthropic ženklas
+žymi Claude, ChatGPT logotipas – Codex, o F raidė – Fable.
+Kurį rodyti, pasirenkama nustatymuose.
 
 Claude turi dvi juosteles: viršutinė – 5 valandų limitas,
-apatinė – 7 dienų. Codex turi vieną – savaitės.
+apatinė – bendras 7 dienų. Fable ir Codex turi po vieną – savaitės.
 
 Žalia iki 70 %, geltona iki 90 %, raudona nuo 90 %.
 
-Paspaudus ikoną matyti abu įrankiai: tikslūs skaičiai, kiek
-liko ir po kiek laiko limitas atsistato.
+Paspaudus ikoną matyti visi limitai ir paskyrų planai, kai jų
+duomenys prieinami, pavyzdžiui, Max 20x ir ChatGPT Pro 5x.
 
 
 NEMATAI IKONOS?

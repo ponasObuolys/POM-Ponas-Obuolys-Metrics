@@ -16,16 +16,22 @@ public struct UsageSnapshot: Equatable, Sendable {
     public enum Source: String, Equatable, Sendable {
         case statusline
         case server
+        case claudeCLI
     }
 
     public let fiveHour: UsageWindow
     public let sevenDay: UsageWindow
+    public let fable: UsageWindow?
+    public let plan: String?
     public let capturedAt: Date
     public let source: Source
 
-    public init(fiveHour: UsageWindow, sevenDay: UsageWindow, capturedAt: Date, source: Source) {
+    public init(fiveHour: UsageWindow, sevenDay: UsageWindow, capturedAt: Date, source: Source,
+                fable: UsageWindow? = nil, plan: String? = nil) {
         self.fiveHour = fiveHour
         self.sevenDay = sevenDay
+        self.fable = fable
+        self.plan = plan
         self.capturedAt = capturedAt
         self.source = source
     }
@@ -41,6 +47,7 @@ public enum UsageParser {
 
     private static let fiveHourKey = "fivehour"
     private static let sevenDayKey = "sevenday"
+    private static let fableKey = "sevendayfable"
     private static let wrapperKeys = ["rate_limits", "rateLimits", "usage", "data", "limits"]
 
     public static func parse(
@@ -68,7 +75,9 @@ public enum UsageParser {
 
         let captured = decodeDate(firstValue(root, ["captured_at", "capturedAt"])) ?? fallback
         return UsageSnapshot(
-            fiveHour: fiveHour, sevenDay: sevenDay, capturedAt: captured, source: source)
+            fiveHour: fiveHour, sevenDay: sevenDay, capturedAt: captured, source: source,
+            fable: windows[fableKey] ?? windows["sevendayoverageincluded"],
+            plan: firstValue(root, ["plan", "subscription_type"]) as? String)
     }
 
     // MARK: - Pagalbinės
@@ -81,8 +90,20 @@ public enum UsageParser {
         if let array = any as? [Any] {
             for element in array {
                 guard let dict = element as? [String: Any] else { continue }
-                guard let name = firstValue(dict, ["type", "name", "key", "id", "window"]) as? String
-                else { continue }
+                let kind = dict["kind"] as? String
+                let scope = dict["scope"] as? [String: Any]
+                let model = scope?["model"] as? [String: Any]
+                let displayName = (model?["display_name"] ?? dict["display_name"]) as? String
+                let name: String?
+                switch kind {
+                case "session": name = fiveHourKey
+                case "weekly_all": name = sevenDayKey
+                case "weekly_scoped" where isFable(displayName): name = fableKey
+                default:
+                    name = isFable(displayName) ? fableKey
+                        : firstValue(dict, ["type", "name", "key", "id", "window"]) as? String
+                }
+                guard let name else { continue }
                 guard let window = decodeWindow(dict) else { continue }
                 result[normalize(name)] = window
             }
@@ -91,16 +112,21 @@ public enum UsageParser {
 
         guard let dict = any as? [String: Any] else { return result }
 
-        if let nested = dict["limits"] {
-            let inner = collectWindows(from: nested)
-            if !inner.isEmpty { return inner }
-        }
-
         for (key, value) in dict {
             guard let window = decodeWindow(value) else { continue }
             result[normalize(key)] = window
         }
+        for key in ["limits", "model_scoped"] {
+            if let nested = dict[key] {
+                result.merge(collectWindows(from: nested)) { _, newest in newest }
+            }
+        }
         return result
+    }
+
+    private static func isFable(_ name: String?) -> Bool {
+        guard let name = name?.lowercased() else { return false }
+        return name == "fable" || name.hasPrefix("fable ")
     }
 
     private static func normalize(_ name: String) -> String {

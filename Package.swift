@@ -12,7 +12,8 @@ let package = Package(
         .executableTarget(
             name: "POM",
             dependencies: ["POMCore"],
-            path: "Sources/POM"
+            path: "Sources/POM",
+            resources: [.process("Resources")]
         ),
         .executableTarget(
             name: "pom-tests",

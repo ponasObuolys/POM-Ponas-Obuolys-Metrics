@@ -723,14 +723,137 @@ if ProcessInfo.processInfo.environment["POM_CODEX_TEST"] == "1" {
             check(
                 "codex: tikras atsakymas turi lango trukmę", snapshot.windowMinutes > 0,
                 "gauta \(snapshot.windowMinutes)")
+            check("codex: tikras atsakymas turi planą", snapshot.planType != nil)
             print(
                 "· Codex atsakė: \(Int(snapshot.window.usedPercentage)) % iš "
-                    + LTFormat.windowTitle(minutes: snapshot.windowMinutes) + " lango")
+                    + LTFormat.windowTitle(minutes: snapshot.windowMinutes) + " lango; planas: "
+                    + (SubscriptionPlan.codex(snapshot.planType) ?? snapshot.planType ?? "nežinomas"))
         } catch {
             failures.append("codex: tikras ryšys nepavyko: \(error)")
         }
     }
 }
+
+
+// MARK: - POM 2.1: scenarijų keliai, Fable ir planai
+
+do {
+    let home = FileManager.default.temporaryDirectory.appendingPathComponent("pom-command-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: home) }
+    let script = home.appendingPathComponent("mano juosta.sh")
+    try "#!/bin/bash\ninput=$(cat)\n".write(to: script, atomically: true, encoding: .utf8)
+    for command in ["/bin/bash \"\(script.path)\" --trumpai", "bash '\(script.path)'",
+                    "/usr/bin/env MODE=test /bin/bash -- \"\(script.path)\"", "\"\(script.path)\""] {
+        checkEqual("scenarijus su kabutėmis ir vykdykle: \(command)",
+                   Bridge.scriptPath(in: command, home: home), script)
+    }
+    checkEqual("kelias su pridengtu tarpu", Bridge.scriptPath(in: script.path.replacingOccurrences(of: " ", with: "\\ "), home: home), script)
+    for command in ["/bin/bash", "/bin/bash -c '\(script.path)'", "bash \"\(script.path)",
+                    "/bin/bash \"\(script.path)\"; echo blogai", "node /bin/bash", "$(echo /bin/bash)"] {
+        checkEqual("neatpažinta komanda nevirsta svetimu failu: \(command)",
+                   Bridge.scriptPath(in: command, home: home), nil)
+    }
+} catch { failures.append("komandos skaidymas: \(error)") }
+
+do {
+    let json = #"{"subscription_type":"max","rate_limits":{"five_hour":{"utilization":7},"seven_day":{"utilization":3},"limits":[{"kind":"weekly_scoped","percent":4,"resets_at":"2026-09-09T01:59:59.787952+00:00","scope":{"model":{"display_name":"Fable"}}},{"kind":"weekly_scoped","percent":90,"scope":{"model":{"display_name":"Opus"}}}]}}"#
+    let snapshot = try UsageParser.parse(data: Data(json.utf8), source: .claudeCLI, capturedAt: date(10))
+    checkClose("bendras savaitės limitas nepakeistas Fable", snapshot.sevenDay.usedPercentage, 3)
+    checkClose("atskiras Fable iš limits masyvo", snapshot.fable?.usedPercentage ?? -1, 4)
+    check("Fable ISO atsistatymo laikas perskaitytas", snapshot.fable?.resetsAt != nil)
+    checkEqual("Claude plano tipas", snapshot.plan, "max")
+    let modelScoped = #"{"five_hour":{"utilization":7},"seven_day":{"utilization":3},"model_scoped":[{"display_name":"Fable 5.1","utilization":6,"resets_at":null}]}"#
+    let scoped = try UsageParser.parse(data: Data(modelScoped.utf8), source: .server, capturedAt: date(20))
+    checkClose("Fable iš model_scoped", scoped.fable?.usedPercentage ?? -1, 6)
+    let legacy = #"{"five_hour":{"used_percentage":7},"seven_day":{"used_percentage":3}}"#
+    let without = try UsageParser.parse(data: Data(legacy.utf8), source: .statusline, capturedAt: date(30))
+    checkEqual("nesantis Fable nėra nulis", without.fable, nil)
+    let direct = #"{"five_hour":{"used_percentage":7},"seven_day":{"used_percentage":3},"seven_day_fable":{"used_percentage":0}}"#
+    let zero = try UsageParser.parse(data: Data(direct.utf8), source: .statusline, capturedAt: date(30))
+    checkClose("tikras Fable nulis išlieka", zero.fable?.usedPercentage ?? -1, 0)
+    let folder = FileManager.default.temporaryDirectory.appendingPathComponent("pom-fable-\(UUID().uuidString)")
+    defer { try? FileManager.default.removeItem(at: folder) }
+    let store = SnapshotStore(fileURL: folder.appendingPathComponent("usage.json"), source: .claudeCLI)
+    try store.save(snapshot)
+    checkEqual("Fable ir planas išlieka po išsaugojimo", store.load(), snapshot)
+} catch { failures.append("Fable skaitymas ir išsaugojimas: \(error)") }
+
+checkEqual("Claude Max 20x", SubscriptionPlan.claude(type: "max", tier: "default_claude_max_20x"), "Max 20x")
+checkEqual("Claude Max 5x", SubscriptionPlan.claude(type: "max", tier: "default_claude_max_5x"), "Max 5x")
+checkEqual("nežinomas Max daugiklis neišgalvojamas", SubscriptionPlan.claude(type: "max", tier: nil), "Max")
+checkEqual("ChatGPT Pro 5x", SubscriptionPlan.codex("prolite"), "ChatGPT Pro 5x")
+checkEqual("ChatGPT Pro 20x", SubscriptionPlan.codex("pro"), "ChatGPT Pro 20x")
+checkEqual("nežinomas planas neišgalvojamas", SubscriptionPlan.codex("new-plan"), nil)
+
+do {
+    let data = Data(#"{"result":{"rateLimits":{"primary":{"usedPercent":99,"windowDurationMins":10080}},"rateLimitsByLimitId":{"codex":{"planType":"prolite","primary":{"usedPercent":12,"windowDurationMins":10080}},"spark":{"primary":{"usedPercent":80,"windowDurationMins":10080}}}}}"#.utf8)
+    let snapshot = try CodexParser.parse(data: data, capturedAt: date(10))
+    checkClose("Codex renkamas įvardytas pagrindinis rinkinys", snapshot.window.usedPercentage, 12)
+    checkEqual("Codex planas perskaitomas", snapshot.planType, "prolite")
+    let folder = FileManager.default.temporaryDirectory.appendingPathComponent("pom-plan-\(UUID().uuidString)")
+    defer { try? FileManager.default.removeItem(at: folder) }
+    let store = CodexStore(fileURL: folder.appendingPathComponent("codex.json"))
+    try store.save(snapshot)
+    checkEqual("Codex planas išlieka po perkrovimo", store.load(), snapshot)
+} catch { failures.append("Codex plano išsaugojimas: \(error)") }
+
+var fableTracker = AlertTracker(thresholds: [80, 95])
+checkEqual("bendro limito perspėjimas", fableTracker.check(window: .sevenDay, percentage: 81, resetsAt: date(500)), 80)
+checkEqual("Fable perspėjimas atskiras", fableTracker.check(window: .fable, percentage: 81, resetsAt: date(500)), 80)
+checkEqual("Fable perspėjimas nekartojamas", fableTracker.check(window: .fable, percentage: 82, resetsAt: date(500)), nil)
+
+if ProcessInfo.processInfo.environment["POM_CLAUDE_TEST"] == "1" {
+    if let executable = ClaudeClient.executable {
+        do {
+            let snapshot = try ClaudeClient().fetch(executable: executable)
+            check("Claude gyvas atsakymas", snapshot.fiveHour.usedPercentage >= 0)
+            check("Fable gyvas atsakymas", snapshot.fable != nil)
+            check("Claude planas gyvame atsakyme", snapshot.plan != nil)
+            print("· Claude ir Fable limitai gauti; planas: \(SubscriptionPlan.claudeLocal() ?? snapshot.plan ?? "nežinomas")")
+        } catch { failures.append("Claude gyvas ryšys: \(error)") }
+    } else { failures.append("Claude gyvai patikrai nerasta") }
+}
+
+
+// MARK: - Claude valdymo protokolas ir proceso uždarymas
+
+do {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("pom-client-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let executable = root.appendingPathComponent("claude")
+    let fixture = #"""
+    #!/bin/bash
+    IFS= read -r first
+    case "$first" in *initialize*) ;; *) exit 1 ;; esac
+    printf '%s\n' '{"type":"control_response","response":{"subtype":"success","request_id":"pom-init","response":{}}}'
+    IFS= read -r second
+    case "$second" in *get_usage*) ;; *) exit 1 ;; esac
+    printf '%s\n' '{"type":"control_response","response":{"subtype":"success","request_id":"pom-usage","response":{"rate_limits_available":true,"subscription_type":"max","rate_limits":{"five_hour":{"utilization":7},"seven_day":{"utilization":3},"model_scoped":[{"display_name":"Fable","utilization":4}]}}}}'
+    while IFS= read -r line; do :; done
+    """#
+    try fixture.write(to: executable, atomically: true, encoding: .utf8)
+    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.path)
+    let snapshot = try ClaudeClient(timeout: 2).fetch(executable: executable)
+    checkClose("Claude protokolas gauna Fable", snapshot.fable?.usedPercentage ?? -1, 4)
+    let rejected = "#!/bin/bash\nIFS= read -r line\nprintf '%s\\n' '{\"type\":\"control_response\",\"response\":{\"subtype\":\"error\",\"request_id\":\"pom-init\",\"error\":\"unsupported\"}}'\n"
+    try rejected.write(to: executable, atomically: true, encoding: .utf8)
+    do {
+        _ = try ClaudeClient(timeout: 2).fetch(executable: executable)
+        failures.append("Claude protokolo klaida turėjo būti perduota")
+    } catch ClaudeClient.ClientError.rejected(let message) {
+        checkEqual("Claude protokolo klaida perduota", message, "unsupported")
+    }
+    try "#!/bin/bash\ntrap '' TERM\nwhile true; do :; done\n".write(to: executable, atomically: true, encoding: .utf8)
+    let started = Date()
+    do {
+        _ = try ClaudeClient(timeout: 0.2).fetch(executable: executable)
+        failures.append("užstrigęs Claude turėjo būti nutrauktas")
+    } catch ClaudeClient.ClientError.timedOut {
+        check("Claude proceso laiko riba galioja net ignoruojant TERM", Date().timeIntervalSince(started) < 3)
+    }
+} catch { failures.append("Claude proceso patikra: \(error)") }
 
 // MARK: - Rezultatas
 

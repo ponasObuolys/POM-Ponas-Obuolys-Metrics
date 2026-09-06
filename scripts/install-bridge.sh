@@ -7,9 +7,10 @@
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-support_dir="$HOME/Library/Application Support/POM"
+pom_home="${POM_HOME:-$HOME}"
+support_dir="$pom_home/Library/Application Support/POM"
 bridge="$support_dir/pom-bridge.sh"
-settings="$HOME/.claude/settings.json"
+settings="$pom_home/.claude/settings.json"
 marker_start="# >>> POM (Ponas Obuolys Metrika) >>>"
 marker_end="# <<< POM (Ponas Obuolys Metrika) <<<"
 
@@ -23,51 +24,16 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 1
 fi
 
-# Iš nustatymuose įrašytos komandos ištraukia scenarijaus kelią. Komandoje gali būti ne tik
-# pats scenarijus, bet ir vykdyklė su argumentais („bash ~/.claude/juosta.sh --trumpai“),
-# todėl imamas pirmas į kelią panašus žodis, kuris tikrai yra esamas failas.
-resolve_script() {
-  local command="$1" token expanded
-  for token in $command; do
-    token="${token%\"}"; token="${token#\"}"
-    token="${token%\'}"; token="${token#\'}"
-    case "$token" in
-      */* | "~"*) ;;
-      *) continue ;;
-    esac
-    expanded="${token/#\~/$HOME}"
-    if [ -f "$expanded" ]; then
-      printf '%s' "$expanded"
-      return 0
-    fi
-  done
-  return 1
-}
-
-# Komanda iš vieno žodžio, panašaus į kelią. Tokį failą sukurti saugu: nustatymai
-# į jį jau rodo, tad nieko svetimo nepakeisime.
-single_path() {
-  local command="$1" token count=0 candidate=""
-  for token in $command; do
-    count=$((count + 1))
-    candidate="$token"
-  done
-  [ "$count" -eq 1 ] || return 1
-  candidate="${candidate%\"}"; candidate="${candidate#\"}"
-  candidate="${candidate%\'}"; candidate="${candidate#\'}"
-  case "$candidate" in
-    */* | "~"*)
-      printf '%s' "${candidate/#\~/$HOME}"
-      return 0
-      ;;
-  esac
-  return 1
-}
+source "$script_dir/statusline-command.sh"
 
 # 1. Surandamas statusline scenarijus
 configured=""
 if [ -f "$settings" ]; then
-  configured=$(jq -r '.statusLine.command // ""' "$settings" 2>/dev/null || echo "")
+  configured=$(jq -er 'if type != "object" then error("settings") else
+    (.statusLine.command // "") | if type == "string" then . else error("command") end end' "$settings") || {
+    echo "Klaida: Claude Code nustatymai netaisyklingi. Nieko nekeista."
+    exit 1
+  }
 fi
 
 statusline=""
@@ -77,7 +43,7 @@ register=false
 if [ -z "$configured" ]; then
   # Būsenos juostos nėra visai. Be jos Claude Code limitų reikšmių niekam neperduoda,
   # tad kitokio kelio prie duomenų nėra: susikuriame savo ir užregistruojame.
-  create_target="$HOME/.claude/statusline.sh"
+  create_target="$pom_home/.claude/statusline.sh"
   register=true
 elif statusline=$(resolve_script "$configured"); then
   : # rastas esamas scenarijus, prie jo ir kabinsimės
@@ -158,7 +124,7 @@ STATUSLINE
 
   # Užregistruojama Claude Code nustatymuose, prieš tai pasidarius kopiją.
   if $register; then
-    mkdir -p "$HOME/.claude"
+    mkdir -p "$pom_home/.claude"
     if [ -f "$settings" ]; then
       cp "$settings" "$settings.bak-$(date +%Y%m%d%H%M%S)"
       tmp_settings=$(mktemp)
@@ -211,11 +177,10 @@ echo "Atsarginė kopija: $backup"
 tmp=$(mktemp)
 {
   sed -n "1,${hook_line}p" "$statusline"
-  echo ""
   echo "$marker_start"
   echo "# Limitų reikšmės perduodamos meniu juostos programai. Veikia fone, todėl"
   echo "# statusline greičio nestabdo. Pašalinama: scripts/uninstall-bridge.sh"
-  echo "printf '%s' \"\$$variable\" | \"\$HOME/Library/Application Support/POM/pom-bridge.sh\" >/dev/null 2>&1 &"
+  echo "printf '%s' \"\$$variable\" | \"\${POM_HOME:-\$HOME}/Library/Application Support/POM/pom-bridge.sh\" >/dev/null 2>&1 &"
   echo "$marker_end"
   sed -n "$((hook_line + 1)),\$p" "$statusline"
 } >"$tmp"

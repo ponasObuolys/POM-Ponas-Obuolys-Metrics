@@ -17,6 +17,10 @@ public enum POMPaths {
         supportDirectory.appendingPathComponent("server-snapshot.json")
     }
 
+    public static var claudeCacheFile: URL {
+        supportDirectory.appendingPathComponent("claude-snapshot.json")
+    }
+
     /// Paskutinė Codex reikšmė, kad ji būtų matoma dar prieš pirmą naują atsakymą.
     public static var codexCacheFile: URL {
         supportDirectory.appendingPathComponent("codex-snapshot.json")
@@ -52,13 +56,15 @@ public struct SnapshotStore: Sendable {
         let directory = fileURL.deletingLastPathComponent()
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
 
-        let payload: [String: Any] = [
+        var payload: [String: Any] = [
             "schema": 1,
             "source": snapshot.source.rawValue,
             "captured_at": snapshot.capturedAt.timeIntervalSince1970,
             "five_hour": encode(snapshot.fiveHour),
             "seven_day": encode(snapshot.sevenDay),
         ]
+        if let fable = snapshot.fable { payload["seven_day_fable"] = encode(fable) }
+        if let plan = snapshot.plan { payload["plan"] = plan }
         let data = try JSONSerialization.data(withJSONObject: payload, options: [])
 
         let temporary = directory.appendingPathComponent("\(fileURL.lastPathComponent).\(getpid()).tmp")

@@ -4,3 +4,4 @@
 dist/
 *.icns
 *.iconset/
+.codex/.po-context-notified
