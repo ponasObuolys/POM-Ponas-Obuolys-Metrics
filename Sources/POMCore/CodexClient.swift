@@ -53,12 +53,18 @@ public struct CodexClient: Sendable {
         let watchdog = DispatchWorkItem {
             if process.isRunning { process.terminate() }
         }
+        let killSwitch = DispatchWorkItem {
+            if process.isRunning { kill(process.processIdentifier, SIGKILL) }
+        }
         DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + timeout, execute: watchdog)
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + timeout + 1, execute: killSwitch)
 
         defer {
             watchdog.cancel()
             try? input.fileHandleForWriting.close()
             if process.isRunning { process.terminate() }
+            process.waitUntilExit()
+            killSwitch.cancel()
         }
 
         // Įvestis lieka atvira, kol gaunamas atsakymas: pamatęs jos pabaigą Codex
@@ -73,6 +79,7 @@ public struct CodexClient: Sendable {
             let chunk = reader.availableData
             if chunk.isEmpty { break }
             buffer.append(chunk)
+            guard buffer.count <= 4 * 1024 * 1024 else { throw ClientError.noResponse }
 
             while let index = buffer.firstIndex(of: newline) {
                 let line = buffer[buffer.startIndex..<index]

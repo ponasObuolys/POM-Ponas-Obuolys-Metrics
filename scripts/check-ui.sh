@@ -9,7 +9,8 @@ sources=()
 for source in Sources/POM/*.swift; do
   [ "$source" = Sources/POM/main.swift ] || sources+=("$source")
 done
-swiftc -parse-as-library -I "$pom_build_dir/Modules" \
+swiftc -parse-as-library -I "$pom_build_dir/Modules" -F "$pom_build_dir" -framework Sparkle \
+  -Xlinker -rpath -Xlinker "$pom_build_dir" \
   "$pom_build_dir"/POMCore.build/*.o "${sources[@]}" \
   "$pom_build_dir/POM.build/DerivedSources/resource_bundle_accessor.swift" \
   tests/POMViewTests/main.swift -o "$pom_build_dir/pom-view-tests"

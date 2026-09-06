@@ -23,15 +23,17 @@ public struct UsageSnapshot: Equatable, Sendable {
     public let sevenDay: UsageWindow
     public let fable: UsageWindow?
     public let plan: String?
+    public let extraUsage: ClaudeExtraUsage?
     public let capturedAt: Date
     public let source: Source
 
     public init(fiveHour: UsageWindow, sevenDay: UsageWindow, capturedAt: Date, source: Source,
-                fable: UsageWindow? = nil, plan: String? = nil) {
+                fable: UsageWindow? = nil, plan: String? = nil, extraUsage: ClaudeExtraUsage? = nil) {
         self.fiveHour = fiveHour
         self.sevenDay = sevenDay
         self.fable = fable
         self.plan = plan
+        self.extraUsage = extraUsage
         self.capturedAt = capturedAt
         self.source = source
     }
@@ -77,7 +79,8 @@ public enum UsageParser {
         return UsageSnapshot(
             fiveHour: fiveHour, sevenDay: sevenDay, capturedAt: captured, source: source,
             fable: windows[fableKey] ?? windows["sevendayoverageincluded"],
-            plan: firstValue(root, ["plan", "subscription_type"]) as? String)
+            plan: firstValue(root, ["plan", "subscription_type"]) as? String,
+            extraUsage: ClaudeExtraUsage.parse(root["extra_usage"] ?? (root["rate_limits"] as? [String: Any])?["extra_usage"]))
     }
 
     // MARK: - Pagalbinės
@@ -137,7 +140,7 @@ public enum UsageParser {
         guard let dict = any as? [String: Any] else { return nil }
         let percentValue = firstValue(
             dict, ["used_percentage", "usedPercentage", "utilization", "used_percent", "percent"])
-        guard let percent = decodeNumber(percentValue) else { return nil }
+        guard let percent = finiteNumber(percentValue), percent <= 100_000 else { return nil }
         let resets = decodeDate(firstValue(dict, ["resets_at", "resetsAt", "reset_at"]))
         return UsageWindow(usedPercentage: percent, resetsAt: resets)
     }

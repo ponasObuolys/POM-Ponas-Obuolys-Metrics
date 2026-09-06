@@ -6,11 +6,15 @@ import SwiftUI
 final class UsageViewModel: ObservableObject {
     @Published private(set) var now = Date()
     @Published private(set) var snapshot: UsageSnapshot?
-    @Published private(set) var serverNote: String?
+    @Published private var serverMessage: LocalizedNote?
+    var serverNote: String? { serverMessage?.text(settings.language) }
     /// Ar limitų reikšmės iš Claude Code apskritai pasiekia POM.
     @Published private(set) var isBridgeConnected = false
     @Published private(set) var isConnecting = false
-    @Published private(set) var claudeNote: String?
+    @Published private var claudeMessage: LocalizedNote?
+    var claudeNote: String? { claudeMessage?.text(settings.language) }
+    @Published private(set) var extraSnapshot: UsageSnapshot?
+    var onSnapshot: ((UsageSnapshot) -> Void)?
     @Published private(set) var fableSnapshot: UsageSnapshot?
     @Published private(set) var planTitle: String?
 
@@ -64,8 +68,7 @@ final class UsageViewModel: ObservableObject {
     private let hasJQ: Bool
 
     var jqNote: String? {
-        hasJQ ? nil : "Būsenos juostos tiltui reikia jq komandos. "
-            + "Įdiek ją terminale: brew install jq"
+        hasJQ ? nil : settings.text("Būsenos juostos tiltui reikia jq komandos. Įdiek ją terminale: brew install jq", "The status line bridge needs jq. Install it in Terminal: brew install jq")
     }
 
     /// Prikabina POM prie Claude Code statusline. Grąžina klaidos tekstą, jei nepavyko.
@@ -83,7 +86,7 @@ final class UsageViewModel: ObservableObject {
             tick()
             return nil
         } catch {
-            return error.localizedDescription
+            return settings.text("Nepavyko prijungti Claude Code. Patikrink, ar įdiegtas jq, ir pabandyk dar kartą.", "Could not connect Claude Code. Check that jq is installed and try again.")
         }
     }
 
@@ -108,7 +111,7 @@ final class UsageViewModel: ObservableObject {
 
     var fableAge: String {
         guard let fableSnapshot else { return "" }
-        return LTFormat.age(from: fableSnapshot.capturedAt, now: now)
+        return settings.language.age(from: fableSnapshot.capturedAt, now: now)
     }
 
     var freshness: Freshness {
@@ -118,14 +121,14 @@ final class UsageViewModel: ObservableObject {
     /// Trumpas amžius sekcijos antraštei: „prieš 2 min“.
     var ageShort: String {
         guard let snapshot else { return "" }
-        return LTFormat.age(from: snapshot.capturedAt, now: now)
+        return settings.language.age(from: snapshot.capturedAt, now: now)
     }
 
     var sourceText: String {
         switch snapshot?.source {
-        case .statusline: return "iš Claude Code"
-        case .server: return "iš serverio"
-        case .claudeCLI: return "iš Claude Code"
+        case .statusline: return settings.text("iš Claude Code", "from Claude Code")
+        case .server: return settings.text("iš serverio", "from server")
+        case .claudeCLI: return settings.text("iš Claude Code", "from Claude Code")
         case nil: return ""
         }
     }
@@ -191,6 +194,10 @@ final class UsageViewModel: ObservableObject {
         // gali patvirtinti, kad atskiro limito nebėra; bendras atnaujinimas jo nepaslepia.
         fableSnapshot = candidates.filter { $0.source == .claudeCLI || $0.fable != nil }
             .max { $0.capturedAt < $1.capturedAt }
+        extraSnapshot = candidates.filter { $0.source == .claudeCLI || $0.extraUsage != nil }
+            .max { $0.capturedAt < $1.capturedAt }
+        if let snapshot { onSnapshot?(snapshot) }
+        if let fableSnapshot { onSnapshot?(fableSnapshot) }
         let type = claudeSnapshot?.plan
         let localPlan = SubscriptionPlan.claudeLocal(home: home)
         if type.map({ localPlan?.lowercased().hasPrefix($0.lowercased()) == true }) ?? true {
@@ -203,13 +210,13 @@ final class UsageViewModel: ObservableObject {
     private func fetchFromClaude(manual: Bool) {
         guard !isFetchingClaude else { return }
         guard let executable = ClaudeClient.executable else {
-            claudeNote = "Fable limitui reikia įdiegtos Claude Code komandos."
+            claudeMessage = .init("Fable limitui reikia įdiegtos Claude Code komandos.", "Install Claude Code to see the Fable limit.")
             return
         }
         let decision = claudeGate.decide(localCapturedAt: claudeSnapshot?.capturedAt, now: now, manual: manual)
         guard decision == .fetch else {
             if manual, decision == .skipManualFloor {
-                claudeNote = "Claude galima atnaujinti kartą per pusę minutės."
+                claudeMessage = .init("Claude galima atnaujinti kartą per pusę minutės.", "Claude can be refreshed once every 30 seconds.")
             }
             return
         }
@@ -224,17 +231,18 @@ final class UsageViewModel: ObservableObject {
                 claudeSnapshot = fresh
                 try? claudeStore.save(fresh)
                 claudeGate.recordSuccess()
-                claudeNote = fresh.fable == nil ? "Claude nepateikė atskiro Fable limito." : nil
+                claudeMessage = fresh.fable == nil ? .init("Claude nepateikė atskiro Fable limito.", "Claude did not report a separate Fable limit.") : nil
                 now = Date()
                 recompute()
                 deliverAlerts()
             } catch {
                 claudeGate.recordFailure()
                 if case ClaudeClient.ClientError.unavailable = error {
-                    claudeNote = "Claude naudojimo duomenys nepasiekiami. Patikrink prisijungimą: claude auth login."
+                    claudeMessage = .init("Claude naudojimo duomenys nepasiekiami. Patikrink prisijungimą: claude auth login.", "Claude usage is unavailable. Check your sign-in: claude auth login.")
                 } else {
-                    claudeNote = "Nepavyko atnaujinti Claude limitų. "
-                        + "Bandoma vėl \(LTFormat.absolute(now.addingTimeInterval(claudeGate.backoffInterval), now: now))."
+                    let retry = now.addingTimeInterval(claudeGate.backoffInterval)
+                    claudeMessage = .init("Nepavyko atnaujinti Claude limitų. Bandoma vėl \(AppLanguage.lt.absolute(retry, now: now)).",
+                                          "Could not refresh Claude limits. Retrying \(AppLanguage.en.absolute(retry, now: now)).")
                 }
             }
             isFetchingClaude = false
@@ -251,9 +259,9 @@ final class UsageViewModel: ObservableObject {
         tracker.updateThresholds(settings.alertPreset.thresholds)
         guard settings.notificationsEnabled, hasData else { return }
 
-        alert(window: .fiveHour, display: fiveHour, name: "5 valandų")
-        alert(window: .sevenDay, display: sevenDay, name: "7 dienų")
-        if let fable { alert(window: .fable, display: fable, name: "Fable 7 dienų") }
+        alert(window: .fiveHour, display: fiveHour, name: settings.language.windowTitle(minutes: 300))
+        alert(window: .sevenDay, display: sevenDay, name: settings.language.windowTitle(minutes: 10080))
+        if let fable { alert(window: .fable, display: fable, name: "Fable " + settings.language.windowTitle(minutes: 10080)) }
     }
 
     private func alert(window: AlertTracker.Window, display: DisplayWindow, name: String) {
@@ -266,12 +274,12 @@ final class UsageViewModel: ObservableObject {
 
         let used = Int(display.usedPercentage.rounded())
         let remaining = Int(display.remainingPercentage.rounded())
-        var body = "Sunaudota \(used) %, liko \(remaining) %."
+        var body = settings.text("Sunaudota \(used) %, liko \(remaining) %.", "Used \(used)%, remaining \(remaining)%.")
         if let resetsAt = display.resetsAt {
-            let countdown = LTFormat.countdown(to: resetsAt, now: now)
-            body += " Atsistato " + LTFormat.endingWithPeriod(countdown)
+            let countdown = settings.language.countdown(to: resetsAt, now: now)
+            body += settings.text(" Atsistato ", " Resets ") + LTFormat.endingWithPeriod(countdown)
         }
-        notifications.post(subtitle: "\(name) limitas baigiasi", body: body)
+        notifications.post(subtitle: settings.text("\(name) limitas baigiasi", "\(name) limit is running low"), body: body)
     }
 
     // MARK: - Serveris
@@ -285,17 +293,17 @@ final class UsageViewModel: ObservableObject {
         guard decision == .fetch else {
             if manual {
                 // Paspaudus mygtuką visada atsakoma, kodėl serverio neklausiama.
-                serverNote = note(for: decision)
+                serverMessage = note(for: decision)
             } else if decision == .skipDisabled {
                 // Išjungta pačiam vartotojui – aiškinti nėra ko, langelis lieka švarus.
-                serverNote = nil
+                serverMessage = nil
             }
             return
         }
 
         isFetching = true
         gate.recordAttempt(at: now)
-        if manual { serverNote = "Klausiama serverio…" }
+        if manual { serverMessage = .init("Klausiama serverio…", "Checking the server…") }
 
         let client = self.client
         Task {
@@ -316,7 +324,7 @@ final class UsageViewModel: ObservableObject {
         gate.recordSuccess()
         serverSnapshot = fresh
         try? serverStore.save(fresh)
-        serverNote = nil
+        serverMessage = nil
         recompute()
         deliverAlerts()
     }
@@ -325,58 +333,46 @@ final class UsageViewModel: ObservableObject {
         isFetching = false
         gate.recordFailure()
 
-        let reason: String
+        let reason: LocalizedNote
         switch error {
         case OAuthUsageClient.ClientError.forbidden:
-            // Nuolatinė kliūtis: raktas galioja, bet neturi teisės skaityti limitų.
-            // Taip elgiasi `claude setup-token` raktas. Kartoti nėra prasmės.
             gate.block()
-            serverNote =
-                "Serverio klausti neleidžiama: raktas neturi teisės skaityti limitų "
-                + "(reikia „user:profile“). Skaičiai imami iš Claude Code."
+            serverMessage = .init("Serverio klausti neleidžiama: raktui reikia „user:profile“ teisės. Skaičiai imami iš Claude Code.",
+                                  "Server access requires the user:profile permission. Using Claude Code data.")
             return
         case OAuthUsageClient.ClientError.unauthorized:
             gate.block()
-            serverNote =
-                "Serveris rakto nebepriima. Įrašyk naują: ./scripts/set-token.sh"
+            serverMessage = .init("Serveris rakto nebepriima. Prisijunk prie Claude Code iš naujo.",
+                                  "The server rejected your credentials. Sign in to Claude Code again.")
             return
         case OAuthUsageClient.ClientError.rateLimited:
-            reason = "serveris atmetė užklausą (per dažnai)"
+            reason = .init("serveris atmetė užklausą (per dažnai)", "the server rate limited the request")
         case OAuthUsageClient.ClientError.http(let code):
-            reason = "serveris atsakė klaida \(code)"
+            reason = .init("serveris atsakė klaida \(code)", "the server returned error \(code)")
         case KeychainToken.TokenError.expired:
-            reason = "prisijungimo raktas nebegalioja"
+            reason = .init("prisijungimo raktas nebegalioja", "the sign-in token expired")
         case KeychainToken.TokenError.claudeAccountNotFound:
-            // Šiame kompiuteryje Claude prenumeratos rakto raktinėje nėra, tad serverio
-            // klausti neįmanoma. Skaičiai toliau imami iš Claude Code, ir to pakanka.
-            serverNote =
-                "Serverio klausti nepavyksta: raktinėje nėra Claude prisijungimo rakto. "
-                + "Skaičiai imami iš Claude Code."
+            serverMessage = .init("Raktinėje nėra Claude prisijungimo rakto. Skaičiai imami iš Claude Code.",
+                                  "No Claude sign-in token in Keychain. Using Claude Code data.")
             return
         case KeychainToken.TokenError.commandFailed, KeychainToken.TokenError.unreadableSecret:
-            reason = "nepavyko perskaityti raktinės"
+            reason = .init("nepavyko perskaityti raktinės", "could not read Keychain")
         default:
-            reason = "nepavyko susisiekti su serveriu"
+            reason = .init("nepavyko susisiekti su serveriu", "could not reach the server")
         }
-
-        let retryAt = now.addingTimeInterval(gate.backoffInterval)
-        serverNote = "Serveris: \(reason). Bandoma vėl \(LTFormat.absolute(retryAt, now: now))."
+        let retry = now.addingTimeInterval(gate.backoffInterval)
+        serverMessage = .init("Serveris: \(reason.lt). Bandoma vėl \(AppLanguage.lt.absolute(retry, now: now)).",
+                              "Server: \(reason.en). Retrying \(AppLanguage.en.absolute(retry, now: now)).")
     }
 
-    private func note(for decision: ServerFetchGate.Decision) -> String? {
+    private func note(for decision: ServerFetchGate.Decision) -> LocalizedNote? {
         switch decision {
-        case .fetch:
-            return nil
-        case .skipDisabled:
-            return "Serverio klausimas išjungtas nustatymuose."
-        case .skipBlocked:
-            return "Serverio klausti neleidžiama su turimu raktu."
-        case .skipLocalFresh:
-            return "Duomenys jau švieži, serverio klausti nereikia."
-        case .skipBackoff:
-            return "Serveris neseniai atmetė užklausą, laukiama."
-        case .skipManualFloor:
-            return "Per dažnai. Serverio galima klausti kartą per 5 min."
+        case .fetch: return nil
+        case .skipDisabled: return .init("Serverio klausimas išjungtas nustatymuose.", "Server fallback is disabled in settings.")
+        case .skipBlocked: return .init("Serverio klausti neleidžiama su turimu raktu.", "These credentials cannot access server usage.")
+        case .skipLocalFresh: return .init("Duomenys jau švieži, serverio klausti nereikia.", "Data is already up to date.")
+        case .skipBackoff: return .init("Serveris neseniai atmetė užklausą, laukiama.", "Waiting before retrying the server.")
+        case .skipManualFloor: return .init("Serverio galima klausti kartą per 5 min.", "The server can be refreshed once every 5 minutes.")
         }
     }
 }

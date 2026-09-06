@@ -5,3 +5,10 @@ dist/
 *.icns
 *.iconset/
 .codex/.po-context-notified
+
+# Signing credentials never belong in the repository.
+*.p12
+*.p8
+*.keychain-db
+*.private-key
+__pycache__/

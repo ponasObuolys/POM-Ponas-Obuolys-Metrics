@@ -6,31 +6,39 @@ struct UsagePanelView: View {
     @ObservedObject var model: UsageViewModel
     @ObservedObject var codex: CodexViewModel
     @ObservedObject var settings: Settings
+    var updater: UpdateService? = nil
+    var showHistory: () -> Void = {}
 
     var body: some View {
         VStack(spacing: 0) {
             header
             separator
-            claudeSection
-
-            if codex.isPresent {
-                separator
-                codexSection
+            ScrollView {
+                VStack(spacing: 0) {
+                    claudeSection
+                    if codex.isPresent { separator; codexSection }
+                }
             }
+            .frame(height: codex.isPresent ? 580 : 440)
 
             separator
             footer
         }
-        .frame(width: 324)
+        .frame(width: 344)
+        .environment(\.locale, settings.locale)
     }
 
     // MARK: - Bendros dalys
 
     private var header: some View {
         HStack {
-            Text("Limitai")
+            Text(settings.text("Limitai", "Usage limits"))
                 .font(.system(size: 13, weight: .semibold))
             Spacer()
+            Button(action: showHistory) {
+                Label(settings.text("Istorija", "History"), systemImage: "chart.xyaxis.line")
+                    .font(.system(size: 11, weight: .medium))
+            }.buttonStyle(.plain).foregroundStyle(.secondary)
         }
         .padding(.horizontal, 18)
         .padding(.top, 14)
@@ -62,18 +70,18 @@ struct UsagePanelView: View {
             if let plan = model.planTitle { planLabel(plan) }
 
             if model.hasData {
-                WindowRow(title: "5 valandų", window: model.fiveHour, now: model.now)
-                WindowRow(title: "Visi modeliai · 7 dienų", window: model.sevenDay, now: model.now)
+                WindowRow(title: settings.language.windowTitle(minutes: 300), window: model.fiveHour, now: model.now, language: settings.language)
+                WindowRow(title: settings.text("Visi modeliai · 7 dienų", "All models · 7-day"), window: model.sevenDay, now: model.now, language: settings.language)
                 if let fable = model.fable {
-                    WindowRow(title: "Fable · 7 dienų", window: fable, now: model.now)
+                    WindowRow(title: settings.text("Fable · 7 dienų", "Fable · 7-day"), window: fable, now: model.now, language: settings.language)
                     if model.fableSnapshot?.capturedAt != model.snapshot?.capturedAt {
-                        note("Fable atnaujinta \(model.fableAge).")
+                        note(settings.text("Fable atnaujinta \(model.fableAge).", "Fable updated \(model.fableAge)."))
                     }
                 }
                 if !model.isBridgeConnected {
                     note(model.snapshot?.source == .claudeCLI
-                         ? "Būsenos juosta neprijungta. Limitus POM gauna tiesiogiai iš Claude Code."
-                         : "Ryšys su būsenos juosta nutrūko. Rodomi paskutiniai gauti skaičiai.", highlighted: true)
+                         ? settings.text("Būsenos juosta neprijungta. Limitus POM gauna tiesiogiai iš Claude Code.", "The status line is not connected. POM reads limits directly from Claude Code.")
+                         : settings.text("Ryšys su būsenos juosta nutrūko. Rodomi paskutiniai gauti skaičiai.", "The status line is disconnected. Showing the last received readings."), highlighted: true)
                     ConnectView(model: model, compact: true)
                 }
             } else {
@@ -84,6 +92,10 @@ struct UsagePanelView: View {
             // vartotojas spaudžia atnaujinimo mygtuką ir laukia paaiškinimo.
             if let text = model.serverNote { note(text) }
             if let text = model.claudeNote { note(text) }
+            if model.hasData {
+                ExtraUsageDisclosure(settings: settings, claude: model.extraSnapshot?.extraUsage,
+                               capturedAt: model.extraSnapshot?.capturedAt)
+            }
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 16)
@@ -96,9 +108,9 @@ struct UsagePanelView: View {
                 Image(systemName: "clock.badge.questionmark")
                     .font(.system(size: 26, weight: .light))
                     .foregroundStyle(.secondary)
-                Text("Duomenų dar nėra")
+                Text(settings.text("Duomenų dar nėra", "No readings yet"))
                     .font(.system(size: 13, weight: .medium))
-                Text("POM klausia Claude Code. Skaičiai atsiras prisijungus prie paskyros.")
+                Text(settings.text("POM klausia Claude Code. Skaičiai atsiras prisijungus prie paskyros.", "POM is checking Claude Code. Readings will appear when you are signed in."))
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -133,12 +145,16 @@ struct UsagePanelView: View {
             }
 
             if codex.hasData {
-                WindowRow(title: codex.title, window: codex.window, now: codex.now)
+                WindowRow(title: codex.title, window: codex.window, now: codex.now, language: settings.language)
             } else if !codex.isSignedOut {
-                note("Skaičių dar nėra. POM klausia Codex kas kelias minutes.")
+                note(settings.text("Skaičių dar nėra. POM klausia Codex kas kelias minutes.", "No readings yet. POM checks Codex every few minutes."))
             }
 
             if let text = codex.note { note(text) }
+            if codex.hasData {
+                ExtraUsageDisclosure(settings: settings, codex: codex.snapshot?.additionalUsage,
+                               capturedAt: codex.snapshot?.capturedAt)
+            }
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 16)
@@ -170,9 +186,9 @@ struct UsagePanelView: View {
                     .font(.system(size: 12, weight: .medium))
             }
             .buttonStyle(IconButtonStyle())
-            .help("Atnaujinti dabar")
+            .help(settings.text("Atnaujinti dabar", "Refresh now"))
 
-            SettingsMenu(model: model, codex: codex, settings: settings)
+            SettingsMenu(model: model, codex: codex, settings: settings, updater: updater)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)

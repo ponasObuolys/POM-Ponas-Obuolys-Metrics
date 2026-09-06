@@ -18,11 +18,11 @@ enum AlertPreset: String, CaseIterable, Identifiable {
         }
     }
 
-    var title: String {
+    func title(_ language: AppLanguage) -> String {
         switch self {
-        case .early: return "Anksti (70 % ir 90 %)"
-        case .standard: return "Įprastai (80 % ir 95 %)"
-        case .late: return "Vėlai (90 % ir 98 %)"
+        case .early: return language.text("Anksti (70 % ir 90 %)", "Early (70% and 90%)")
+        case .standard: return language.text("Įprastai (80 % ir 95 %)", "Standard (80% and 95%)")
+        case .late: return language.text("Vėlai (90 % ir 98 %)", "Late (90% and 98%)")
         }
     }
 }
@@ -72,9 +72,23 @@ final class Settings: ObservableObject {
         didSet { defaults.set(alertPreset.rawValue, forKey: Key.alertPreset) }
     }
 
-    @Published var menuBarSource: MenuBarSource {
-        didSet { defaults.set(menuBarSource.rawValue, forKey: Key.menuBarSource) }
+    @Published private(set) var menuBarSources: [MenuBarSource]
+    @Published var language: AppLanguage {
+        didSet { defaults.set(language.rawValue, forKey: "language") }
     }
+    @Published var recoveryNotifications: Bool {
+        didSet { defaults.set(recoveryNotifications, forKey: "recoveryNotifications") }
+    }
+    var locale: Locale { language.locale }
+    func text(_ lt: String, _ en: String) -> String { language.text(lt, en) }
+    func setSource(_ source: MenuBarSource, enabled: Bool) {
+        var selected = Set(menuBarSources)
+        if enabled { selected.insert(source) } else { selected.remove(source) }
+        guard !selected.isEmpty else { return }
+        menuBarSources = MenuBarSource.allCases.filter { selected.contains($0) }
+        defaults.set(menuBarSources.map(\.rawValue), forKey: "menuBarSources")
+    }
+
 
     private let loginItem = LoginItem()
 
@@ -83,15 +97,19 @@ final class Settings: ObservableObject {
             guard launchAtLogin != loginItem.isEnabled else { return }
             do {
                 try loginItem.setEnabled(launchAtLogin)
-                launchAtLoginError = nil
+                launchAtLoginFailed = false
             } catch {
-                launchAtLoginError = error.localizedDescription
+                launchAtLoginFailed = true
                 launchAtLogin = loginItem.isEnabled
             }
         }
     }
 
-    @Published var launchAtLoginError: String?
+    @Published private var launchAtLoginFailed = false
+    var launchAtLoginError: String? {
+        launchAtLoginFailed ? text("Nepavyko pakeisti automatinio paleidimo. Įdiek POM į Applications ir bandyk vėl.",
+                                  "Could not change launch at login. Install POM in Applications and try again.") : nil
+    }
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -104,6 +122,8 @@ final class Settings: ObservableObject {
             Key.notifications: true,
             Key.alertPreset: AlertPreset.standard.rawValue,
             Key.menuBarSource: MenuBarSource.claude.rawValue,
+            "language": AppLanguage.system.rawValue,
+            "recoveryNotifications": true,
         ])
 
         showRemaining = defaults.bool(forKey: Key.showRemaining)
@@ -111,8 +131,11 @@ final class Settings: ObservableObject {
         notificationsEnabled = defaults.bool(forKey: Key.notifications)
         alertPreset =
             AlertPreset(rawValue: defaults.string(forKey: Key.alertPreset) ?? "") ?? .standard
-        menuBarSource =
-            MenuBarSource(rawValue: defaults.string(forKey: Key.menuBarSource) ?? "") ?? .claude
+        let oldSource = MenuBarSource(rawValue: defaults.string(forKey: Key.menuBarSource) ?? "") ?? .claude
+        let sources = defaults.stringArray(forKey: "menuBarSources")?.compactMap(MenuBarSource.init(rawValue:)) ?? [oldSource]
+        menuBarSources = sources.isEmpty ? [.claude] : MenuBarSource.allCases.filter { sources.contains($0) }
+        language = AppLanguage(rawValue: defaults.string(forKey: "language") ?? "") ?? .system
+        recoveryNotifications = defaults.bool(forKey: "recoveryNotifications")
         launchAtLogin = loginItem.isEnabled
     }
 }

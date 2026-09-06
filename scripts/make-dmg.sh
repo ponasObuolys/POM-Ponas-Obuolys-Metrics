@@ -1,121 +1,32 @@
 #!/bin/bash
-# Supakuoja POM.app į DMG atvaizdą, kurį galima persiųsti kolegoms.
-#
-# DMG viduje: pati programa, nuoroda į /Applications ir trumpas paaiškinimas.
-# Programa pasirašyta savo parašu, todėl svetimame kompiuteryje macOS pirmą kartą
-# ją užblokuos. Kaip tai apeiti, parašyta pridedamame paaiškinime.
-
 set -euo pipefail
-
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-app_name="POM"
-# Ta pati versija kaip ir programos viduje, žr. bundle.sh.
-version="$(tr -d '[:space:]' <"$root/VERSION")"
-
-dist="$root/dist"
-app="$dist/$app_name.app"
-staging="$dist/dmg-staging"
-dmg="$dist/$app_name-$version.dmg"
-
-if [ ! -d "$app" ]; then
-  echo "Nerastas $app. Pirma paleisk: ./scripts/bundle.sh"
-  exit 1
+version="$(tr -d '[:space:]' < "$root/VERSION")"
+app="$root/dist/POM.app"
+staging="$root/dist/dmg-staging"
+dmg="$root/dist/POM-$version.dmg"
+[[ -d "$app" ]] || { echo 'Run scripts/bundle.sh first.' >&2; exit 1; }
+if [[ "${POM_RELEASE:-0}" == 1 ]]; then
+  [[ "${POM_SIGN_IDENTITY:-}" == "Developer ID Application:"* ]] || { echo 'Developer ID required.' >&2; exit 1; }
+  xcrun stapler validate "$app"
+  spctl --assess --type execute --verbose=2 "$app"
 fi
-
-echo "1/3 Ruošiamas turinys"
-rm -rf "$staging" "$dmg"
-mkdir -p "$staging"
-cp -R "$app" "$staging/$app_name.app"
-ln -s /Applications "$staging/Applications"
-
-cat >"$staging/Skaityk mane.txt" <<'READ'
-POM (Ponas Obuolys Metrika)
-Claude ir Codex limitai macOS meniu juostoje.
-
-
-KAIP ĮDIEGTI
-
-1. Nutempk POM į Applications aplanką (šalia yra jo nuoroda).
-
-2. Pirmą kartą paleisk taip: Applications aplanke spustelk POM
-   DEŠINIU pelės mygtuku ir pasirink „Open“, tada patvirtink.
-
-   Jei macOS vis tiek neleidžia, atsidaryk
-   System Settings → Privacy & Security, nuslink žemyn ir prie
-   pranešimo apie POM spausk „Open Anyway“.
-
-   Taip yra todėl, kad programa nėra pirkta per Apple kūrėjo
-   paskyrą. Vienas patvirtinimas, ir daugiau to nebeprašys.
-
-3. Prie laikrodžio atsiras juostelės. Paspausk jas ir spausk
-   „Prijungti“ – POM prisikabins prie Claude Code būsenos
-   juostos. Senoji juosta išsaugoma atsargai.
-
-4. Jei Claude Code prijungta prie paskyros, skaičiai atsiras savaime.
-   Fable savaitės limitas rodomas atskirai. Reikia Claude Code
-   su get_usage valdymo užklausa (patikrinta su 2.1.263).
-
-Codex jungti nereikia. Jei jis įdiegtas ir prijungtas prie
-paskyros, savaitės limitas atsiras savaime. Jei Codex nėra,
-ta dalis tiesiog nerodoma.
-
-
-KAIP SKAITYTI
-
-Prie laikrodžio matyti vieno įrankio skaičiai: Anthropic ženklas
-žymi Claude, ChatGPT logotipas – Codex, o F raidė – Fable.
-Kurį rodyti, pasirenkama nustatymuose.
-
-Claude turi dvi juosteles: viršutinė – 5 valandų limitas,
-apatinė – bendras 7 dienų. Fable ir Codex turi po vieną – savaitės.
-
-Žalia iki 70 %, geltona iki 90 %, raudona nuo 90 %.
-
-Paspaudus ikoną matyti visi limitai ir paskyrų planai, kai jų
-duomenys prieinami, pavyzdžiui, Max 20x ir ChatGPT Pro 5x.
-
-
-NEMATAI IKONOS?
-
-Jei naudoji meniu juostos tvarkyklę (Ice, Bartender ar panašią),
-ji naujus elementus paslepia. Susirask POM jos nustatymuose arba,
-laikydamas Cmd, nutempk ikoną į matomą vietą.
-
-
-NUSTATYMAI
-
-Krumpliaračio mygtukas apatiniame dešiniame kampe:
-kurio įrankio skaičius rodyti prie laikrodžio, rodyti likutį
-vietoj sunaudotos dalies, perspėjimai, paleidimas prisijungus
-prie kompiuterio.
-
-
-KAIP PAŠALINTI
-
-Ištrink POM iš Applications. Būsenos juostą grąžinti į pradinę
-būklę galima jos atsargine kopija: ~/.claude/statusline.sh.bak-*
-READ
-
-echo "2/3 Kuriamas atvaizdas"
-hdiutil create \
-  -volname "$app_name $version" \
-  -srcfolder "$staging" \
-  -ov -format UDZO \
-  "$dmg" >/dev/null
-
 rm -rf "$staging"
-
-echo "3/3 Pasirašoma"
-identity="POM Self-Signed"
-if security find-identity -p codesigning 2>/dev/null | grep -q "$identity"; then
-  codesign --force --sign "$identity" "$dmg"
-else
-  codesign --force --sign - "$dmg"
+mkdir -p "$staging"
+trap 'rm -rf "$staging"' EXIT
+ditto "$app" "$staging/POM.app"
+ln -s /Applications "$staging/Applications"
+cp "$root/docs/INSTALL.txt" "$staging/Read Me - Skaityk mane.txt"
+if [[ "${POM_RELEASE:-0}" != 1 ]]; then
+  printf '%s\n' 'DEVELOPMENT BUILD — not notarized. For local testing only.' > "$staging/DEVELOPMENT BUILD.txt"
 fi
-
-size=$(du -h "$dmg" | cut -f1)
-echo
-echo "Paruošta: $dmg ($size)"
-echo
-echo "Kolegos pirmą kartą turės paleisti dešiniu pelės mygtuku → Open,"
-echo "nes programa nėra pasirašyta pirkta Apple kūrėjo paskyra."
+hdiutil create -volname "POM $version" -srcfolder "$staging" -ov -format UDZO "$dmg" >/dev/null
+if [[ "${POM_SIGN_IDENTITY:-}" == "Developer ID Application:"* ]]; then
+  sign_args=(--force --sign "$POM_SIGN_IDENTITY" --timestamp)
+  if [[ -n "${POM_SIGN_KEYCHAIN:-}" ]]; then sign_args+=(--keychain "$POM_SIGN_KEYCHAIN"); fi
+  codesign "${sign_args[@]}" "$dmg"
+else
+  codesign --force --sign - --timestamp=none "$dmg"
+fi
+hdiutil verify "$dmg" >/dev/null
+echo "Created: $dmg"

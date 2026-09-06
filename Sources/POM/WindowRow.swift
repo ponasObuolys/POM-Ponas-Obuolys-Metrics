@@ -7,6 +7,8 @@ struct WindowRow: View {
     let title: String
     let window: DisplayWindow
     let now: Date
+    var language: AppLanguage = .system
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
@@ -30,14 +32,14 @@ struct WindowRow: View {
             bar
 
             HStack(spacing: 6) {
-                Text("liko \(Int(window.remainingPercentage.rounded())) %")
+                Text(language.text("liko \(Int(window.remainingPercentage.rounded())) %", "\(Int(window.remainingPercentage.rounded()))% left"))
                 Spacer()
                 Text(resetText)
             }
             .font(.system(size: 11))
             .foregroundStyle(.secondary)
         }
-        .animation(.spring(response: 0.5, dampingFraction: 0.85), value: window.usedPercentage)
+        .animation(reduceMotion ? nil : .spring(response: 0.5, dampingFraction: 0.85), value: window.usedPercentage)
     }
 
     private var bar: some View {
@@ -57,9 +59,9 @@ struct WindowRow: View {
     }
 
     private var resetText: String {
-        if window.didReset { return "limitas atsistatė" }
-        guard let resetsAt = window.resetsAt else { return "atsistatymo laikas nežinomas" }
-        return "atsistato " + LTFormat.countdown(to: resetsAt, now: now)
+        if window.didReset { return language.text("laukiama patvirtinimo", "awaiting confirmation") }
+        guard let resetsAt = window.resetsAt else { return language.text("atsistatymo laikas nežinomas", "reset time unknown") }
+        return language.text("atsistato ", "resets ") + language.countdown(to: resetsAt, now: now)
     }
 }
 

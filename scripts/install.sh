@@ -1,8 +1,8 @@
 #!/bin/bash
 # Įdiegia POM į /Applications ir paleidžia.
 #
-# Į /Applications dedama sąmoningai: macOS pranešimų sistema priima tik iš ten
-# paleistas savo parašu pasirašytas programas.
+# Vietinis kūrimo pagalbininkas. Tai nėra notarizacija ar Gatekeeper perspėjimų
+# sprendimas kitiems kompiuteriams. Viešą leidimą ruošia release.sh.
 
 set -euo pipefail
 

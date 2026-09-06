@@ -855,6 +855,73 @@ do {
     }
 } catch { failures.append("Claude proceso patikra: \(error)") }
 
+// MARK: - Extra usage, history and recovery
+
+do {
+    let now = date(1_800_000_000)
+    let json = #"{"rate_limits":{"five_hour":{"utilization":8},"seven_day":{"utilization":15},"extra_usage":{"is_enabled":true,"used_credits":1234,"monthly_limit":5000,"utilization":24.68,"currency":"USD","decimal_places":2}}}"#
+    let extra = try UsageParser.parse(data: Data(json.utf8), source: .claudeCLI, capturedAt: now)
+    checkEqual("extra: preserve minor units", extra.extraUsage?.used, 1234)
+    checkEqual("extra: explicit currency scale", extra.extraUsage?.decimalPlaces, 2)
+    let unknownJSON = json.replacingOccurrences(of: "1234", with: "null").replacingOccurrences(of: "\"decimal_places\":2", with: "\"decimal_places\":null")
+    let unknown = try UsageParser.parse(data: Data(unknownJSON.utf8), source: .claudeCLI, capturedAt: now)
+    checkEqual("extra: null amount stays unknown", unknown.extraUsage?.used, nil)
+    checkEqual("extra: missing scale not guessed", unknown.extraUsage?.decimalPlaces, nil)
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent("pom-extra-tests-\(UUID())")
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let store = SnapshotStore(fileURL: dir.appendingPathComponent("claude.json"), source: .claudeCLI)
+    try store.save(extra)
+    checkEqual("extra: Claude cache round trip", store.load()?.extraUsage, extra.extraUsage)
+    let codexJSON = #"{"result":{"ordinaryUsageAllowed":true,"rateLimitsByLimitId":{"codex":{"primary":{"usedPercent":20,"windowDurationMins":300},"secondary":{"usedPercent":55,"windowDurationMins":10080},"credits":{"balance":"125.5","hasCredits":true,"unlimited":false},"individualLimit":{"limit":"500","used":"100","remainingPercent":80,"resetsAt":1800001000},"spendControlReached":false}},"rateLimitResetCredits":{"availableCount":2,"credits":[{"status":"available","expiresAt":1800002000},{"status":"redeemed","expiresAt":1800000500}]}}}"#
+    let codex = try CodexParser.parse(data: Data(codexJSON.utf8), capturedAt: now)
+    checkEqual("extra: Codex credit balance is not currency", codex.additionalUsage.credits?.balance, "125.5")
+    checkEqual("extra: monthly spend limit", codex.additionalUsage.spendLimit?.remainingPercent, 80)
+    checkEqual("extra: reset credits", codex.additionalUsage.resetCredits, 2)
+    checkEqual("extra: only available expiry", codex.additionalUsage.nextResetCreditExpiry, date(1800002000))
+    checkEqual("extra: backend availability", codex.ordinaryUsageAllowed, true)
+    let cs = CodexStore(fileURL: dir.appendingPathComponent("codex.json"))
+    try cs.save(codex)
+    checkEqual("extra: Codex cache round trip", cs.load()?.additionalUsage, codex.additionalUsage)
+    checkEqual("extra: availability survives restart", cs.load()?.ordinaryUsageAllowed, true)
+
+    var history = UsageHistory()
+    func point(_ time: Date, _ percent: Double, _ reset: Date? = nil) -> HistoryPoint {
+        HistoryPoint(series: .claudeSession, capturedAt: time, percentage: percent, resetsAt: reset)
+    }
+    check("history: old samples rejected", !history.append(point(now.addingTimeInterval(-31*86400), 25), now: now))
+    check("history: future samples rejected", !history.append(point(now.addingTimeInterval(3600), 25), now: now))
+    check("history: non-finite samples rejected", !history.append(point(now, .infinity), now: now))
+    check("history: fresh sample saved", history.append(point(now.addingTimeInterval(-120), 95, now), now: now))
+    check("history: duplicate timestamp rejected", !history.append(point(now.addingTimeInterval(-120), 95, now), now: now))
+    check("history: older source rejected", !history.append(point(now.addingTimeInterval(-150), 99, now), now: now))
+    check("history: within-minute exhaustion preserved", history.append(point(now.addingTimeInterval(-100), 100, now), now: now))
+    check("history: reset preserved", history.append(point(now, 0, now.addingTimeInterval(18000)), now: now))
+    checkEqual("history: reset breaks chart line", history.segments(for: .claudeSession, since: now.addingTimeInterval(-86400)).count, 2)
+    try history.save(to: dir.appendingPathComponent("history.json"))
+    checkEqual("history: survives restart", UsageHistory.load(from: dir.appendingPathComponent("history.json"), now: now).points, history.points)
+    checkEqual("history: expired history pruned on load", UsageHistory.load(from: dir.appendingPathComponent("history.json"), now: now.addingTimeInterval(31*86400)).points.count, 0)
+    try Data("corrupt".utf8).write(to: dir.appendingPathComponent("history.json"))
+    checkEqual("history: corrupt file is safe", UsageHistory.load(from: dir.appendingPathComponent("history.json")).points.count, 0)
+    var recovery = RecoveryTracker()
+    let exhausted = UsageWindow(usedPercentage: 100, resetsAt: now)
+    let fresh = UsageWindow(usedPercentage: 4, resetsAt: now.addingTimeInterval(18000))
+    check("recovery: initial exhausted does not notify", !recovery.observe(id: "claude", window: exhausted, capturedAt: now.addingTimeInterval(-60), now: now))
+    check("recovery: no notification from cached response", !recovery.observe(id: "claude", window: fresh, capturedAt: now.addingTimeInterval(-60), now: now))
+    var restored = try JSONDecoder().decode(RecoveryTracker.self, from: JSONEncoder().encode(recovery))
+    check("recovery: persisted exhausted state recovers", restored.observe(id: "claude", window: fresh, capturedAt: now, now: now))
+    check("recovery: no duplicate notification", !restored.observe(id: "claude", window: fresh, capturedAt: now.addingTimeInterval(60), now: now.addingTimeInterval(60)))
+    _ = recovery.observe(id: "codex", window: exhausted, capturedAt: now.addingTimeInterval(-60), now: now)
+    check("recovery: unknown Codex permission is not recovery", !recovery.observe(id: "codex", window: fresh, capturedAt: now, now: now, requiresAvailability: true))
+    check("recovery: blocked Codex is not recovery", !recovery.observe(id: "codex", window: fresh, capturedAt: now.addingTimeInterval(10), now: now.addingTimeInterval(10), ordinaryUsageAllowed: false, requiresAvailability: true))
+    check("recovery: later explicit Codex recovery", recovery.observe(id: "codex", window: fresh, capturedAt: now.addingTimeInterval(20), now: now.addingTimeInterval(20), ordinaryUsageAllowed: true, requiresAvailability: true))
+    check("recovery: stale data does not notify", !recovery.observe(id: "stale", window: exhausted, capturedAt: now.addingTimeInterval(-3600), now: now))
+    checkEqual("language: Lithuanian system", AppLanguage.system.resolved(preferredLanguages: ["lt-LT", "en-US"]), .lt)
+    checkEqual("language: unsupported system falls back to English", AppLanguage.system.resolved(preferredLanguages: ["fr-FR"]), .en)
+    checkEqual("language: explicit overrides system", AppLanguage.en.resolved(preferredLanguages: ["lt-LT"]), .en)
+    checkEqual("language: English period", AppLanguage.en.windowTitle(minutes: 300), "5-hour")
+    checkEqual("language: Lithuanian period", AppLanguage.lt.windowTitle(minutes: 10080), "7 dienų")
+} catch { failures.append("2.2 usage tests: \(error)") }
+
 // MARK: - Rezultatas
 
 print("")

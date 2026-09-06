@@ -12,7 +12,9 @@ final class CodexViewModel: ObservableObject {
     @Published private(set) var now = Date()
     @Published private(set) var snapshot: CodexSnapshot?
     @Published private(set) var availability: CodexAvailability = .notInstalled
-    @Published private(set) var note: String?
+    @Published private var message: LocalizedNote?
+    var note: String? { message?.text(settings.language) }
+    var onSnapshot: ((CodexSnapshot) -> Void)?
 
     private let settings: Settings
     private let notifications: NotificationService
@@ -63,8 +65,8 @@ final class CodexViewModel: ObservableObject {
     /// Lango pavadinimas imamas iš paties atsakymo, o ne rašomas kietai: Codex planai
     /// skiriasi, ir savaitės langas ne visur yra vienintelis įmanomas.
     var title: String {
-        guard let snapshot else { return "7 dienų" }
-        return LTFormat.windowTitle(minutes: snapshot.windowMinutes)
+        guard let snapshot else { return settings.language.windowTitle(minutes: 10080) }
+        return settings.language.windowTitle(minutes: snapshot.windowMinutes)
     }
 
     var freshness: Freshness {
@@ -74,11 +76,11 @@ final class CodexViewModel: ObservableObject {
     /// Trumpas amžius sekcijos antraštei: „prieš 2 min“.
     var ageShort: String {
         guard let snapshot else { return "" }
-        return LTFormat.age(from: snapshot.capturedAt, now: now)
+        return settings.language.age(from: snapshot.capturedAt, now: now)
     }
 
     var signedOutNote: String {
-        "Codex neprisijungęs prie paskyros. Terminale paleisk: codex login"
+        settings.text("Codex neprisijungęs prie paskyros. Terminale paleisk: codex login", "Codex is signed out. Run in Terminal: codex login")
     }
 
     // MARK: - Ciklas
@@ -127,14 +129,14 @@ final class CodexViewModel: ObservableObject {
         guard !isFetching else { return }
         guard case .ready(let executable) = availability else {
             // Neįdiegtą ar neprisijungusį Codex paaiškina pati sekcija, ne pastaba.
-            note = nil
+            message = nil
             return
         }
 
         let decision = gate.decide(localCapturedAt: snapshot?.capturedAt, now: now, manual: manual)
         guard decision == .fetch else {
             if manual, decision == .skipManualFloor {
-                note = "Per dažnai. Codex galima klausti kartą per pusę minutės."
+                message = .init("Codex galima klausti kartą per pusę minutės.", "Codex can be refreshed once every 30 seconds.")
             }
             return
         }
@@ -159,8 +161,10 @@ final class CodexViewModel: ObservableObject {
         isFetching = false
         gate.recordSuccess()
         snapshot = fresh
+        now = Date()
+        onSnapshot?(fresh)
         try? store.save(fresh)
-        note = nil
+        message = nil
         deliverAlerts()
     }
 
@@ -168,23 +172,22 @@ final class CodexViewModel: ObservableObject {
         isFetching = false
         gate.recordFailure()
 
-        let reason: String
+        let reason: LocalizedNote
         switch error {
         case CodexClient.ClientError.timedOut:
-            reason = "Codex neatsakė laiku"
+            reason = .init("Codex neatsakė laiku", "Codex did not respond in time")
         case CodexClient.ClientError.launchFailed:
-            reason = "nepavyko paleisti Codex"
-        case CodexParser.ParseError.rpcError(let message):
-            // Dažniausia priežastis – senesnė Codex versija, kuri tokio klausimo nesupranta.
-            reason = message.isEmpty ? "Codex atsakė klaida" : "Codex atsakė: \(message)"
+            reason = .init("nepavyko paleisti Codex", "could not start Codex")
+        case CodexParser.ParseError.rpcError:
+            reason = .init("Codex atsakė klaida; patikrink prisijungimą ir versiją", "Codex returned an error; check your sign-in and version")
         case CodexParser.ParseError.noLimits:
-            reason = "Codex limitų reikšmių nepateikė"
+            reason = .init("Codex limitų reikšmių nepateikė", "Codex did not report usage limits")
         default:
-            reason = "nepavyko gauti Codex limitų"
+            reason = .init("nepavyko gauti Codex limitų", "could not read Codex limits")
         }
-
-        let retryAt = now.addingTimeInterval(gate.backoffInterval)
-        note = "\(reason). Bandoma vėl \(LTFormat.absolute(retryAt, now: now))."
+        let retry = now.addingTimeInterval(gate.backoffInterval)
+        message = .init("\(reason.lt). Bandoma vėl \(AppLanguage.lt.absolute(retry, now: now)).",
+                        "\(reason.en). Retrying \(AppLanguage.en.absolute(retry, now: now)).")
     }
 
     // MARK: - Perspėjimai
@@ -204,11 +207,11 @@ final class CodexViewModel: ObservableObject {
 
         let used = Int(display.usedPercentage.rounded())
         let remaining = Int(display.remainingPercentage.rounded())
-        var body = "Sunaudota \(used) %, liko \(remaining) %."
+        var body = settings.text("Sunaudota \(used) %, liko \(remaining) %.", "Used \(used)%, remaining \(remaining)%.")
         if let resetsAt = display.resetsAt {
-            let countdown = LTFormat.countdown(to: resetsAt, now: now)
-            body += " Atsistato " + LTFormat.endingWithPeriod(countdown)
+            let countdown = settings.language.countdown(to: resetsAt, now: now)
+            body += settings.text(" Atsistato ", " Resets ") + LTFormat.endingWithPeriod(countdown)
         }
-        notifications.post(subtitle: "Codex \(title) limitas baigiasi", body: body)
+        notifications.post(subtitle: settings.text("Codex \(title) limitas baigiasi", "Codex \(title) limit is running low"), body: body)
     }
 }

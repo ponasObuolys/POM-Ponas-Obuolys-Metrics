@@ -19,7 +19,15 @@ import POMCore
         let suite = "pom-ui-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set("codex", forKey: "menuBarSource")
         let settings = Settings(defaults: defaults)
+        precondition(settings.menuBarSources == [.codex], "Existing source preference must migrate")
+        settings.setSource(.codex, enabled: false)
+        precondition(settings.menuBarSources == [.codex], "At least one source must remain")
+        settings.setSource(.claude, enabled: true)
+        precondition(Settings(defaults: defaults).menuBarSources == [.claude, .codex])
+        settings.language = .lt
+        precondition(Settings(defaults: defaults).language == .lt)
         let notifications = NotificationService()
         let codex = CodexViewModel(settings: settings, notifications: notifications, store: codexStore, availability: .ready(URL(fileURLWithPath: "/example/codex")))
         let disconnected = UsageViewModel(settings: settings, notifications: notifications, home: root, supportDirectory: support)
@@ -37,6 +45,32 @@ import POMCore
         precondition(connected.isBridgeConnected)
         try render(UsagePanelView(model: connected, codex: codex, settings: settings), name: "normal-light", directory: output, scheme: .light)
         try render(UsagePanelView(model: connected, codex: codex, settings: settings), name: "normal-dark", directory: output, scheme: .dark)
+        settings.language = .en
+        try render(UsagePanelView(model: connected, codex: codex, settings: settings), name: "english-light", directory: output, scheme: .light)
+        try render(ExtraUsageView(settings: settings, claude: ClaudeExtraUsage(enabled: true, used: 1234, limit: 5000, percentage: 24.68, currency: "USD", decimalPlaces: 2)).frame(width: 310), name: "claude-credits", directory: output, scheme: .light)
+        let extras = CodexAdditionalUsage(credits: CodexCredits(hasCredits: true, unlimited: false, balance: "240"), spendLimit: CodexSpendLimit(limit: "500", used: "260", remainingPercent: 48, resetsAt: nil), resetCredits: 2)
+        try render(ExtraUsageView(settings: settings, codex: extras).frame(width: 310), name: "codex-credits", directory: output, scheme: .dark)
+        let historyDirectory = root.appendingPathComponent("history")
+        let emptyHistory = HistoryService(settings: settings, notifications: notifications, directory: historyDirectory)
+        try render(HistoryView(service: emptyHistory, settings: settings), name: "history-empty", directory: output, scheme: .light)
+        var history = UsageHistory()
+        let now = Date()
+        for hour in 0..<168 {
+            for (index, series) in HistorySeries.allCases.enumerated() {
+                let time = now.addingTimeInterval(Double(hour - 168) * 3600)
+                let cycle = series == .claudeSession ? 5 : 72
+                let percent = Double((hour % cycle) * (index + 2)) .truncatingRemainder(dividingBy: 100)
+                let reset = now.addingTimeInterval(Double((hour / cycle + 1) * cycle - 168) * 3600)
+                history.append(HistoryPoint(series: series, capturedAt: time, percentage: percent, resetsAt: reset), now: now)
+            }
+        }
+        try history.save(to: historyDirectory.appendingPathComponent("usage-history.json"))
+        let populated = HistoryService(settings: settings, notifications: notifications, directory: historyDirectory)
+        try render(HistoryView(service: populated, settings: settings), name: "history-english", directory: output, scheme: .light)
+        settings.language = .lt
+        try render(HistoryView(service: populated, settings: settings), name: "history-lithuanian", directory: output, scheme: .dark)
+        let group = MenuBarGroupView(entries: [MenuBarEntry(source: .claude, windows: [connected.fiveHour, connected.sevenDay], hasData: true), MenuBarEntry(source: .codex, windows: [codex.window], hasData: true)], showRemaining: false)
+        try render(group, name: "menubar-together", directory: output, scheme: .light)
         let newer = UsageSnapshot(fiveHour: UsageWindow(usedPercentage: 9, resetsAt: nil), sevenDay: UsageWindow(usedPercentage: 5, resetsAt: nil), capturedAt: Date(), source: .statusline)
         try SnapshotStore(fileURL: support.appendingPathComponent("snapshot.json")).save(newer)
         let merged = UsageViewModel(settings: settings, notifications: notifications, home: root, supportDirectory: support)

@@ -1,0 +1,31 @@
+POM — Claude & Codex usage limits in your Mac menu bar
+
+English
+1. Drag POM into Applications, then open it from Applications.
+2. Sign in to Claude Code and/or Codex CLI. POM reads their usage automatically.
+3. Click the menu bar indicators to see limits, credits and History.
+4. Open Settings to select indicators, alerts, Language and automatic updates.
+
+POM follows your Mac's language (Lithuanian or English; other languages use English).
+You can switch immediately in Settings > Language. History begins with new readings
+and stays on this Mac for 30 days. No API key is required.
+
+If macOS blocks the app, confirm that it came from the official GitHub release.
+Older releases through 2.1.2 are not notarized. Do not disable Gatekeeper.
+See the current signing status and installation help in the repository README.
+
+Lietuviškai
+1. Nutempk POM į Applications aplanką ir paleisk iš jo.
+2. Prisijunk prie Claude Code ir (arba) Codex CLI. POM limitus perskaitys pati.
+3. Paspausk meniu juostos indikatorius: matysi limitus, kreditus ir istoriją.
+4. Nustatymuose pasirink indikatorius, pranešimus, kalbą ir naujinimus.
+
+POM parenka kompiuterio kalbą. Ją galima iš karto pakeisti nustatymuose.
+Istorija kaupiama nuo naujų duomenų gavimo ir šiame kompiuteryje saugoma 30 dienų.
+API rakto nereikia.
+
+Jei macOS blokuoja programą, patikrink, ar ji gauta iš oficialaus GitHub leidimo.
+Ankstesni leidimai iki 2.1.2 imtinai nenotarizuoti. Neišjunk Gatekeeper apsaugos.
+Pasirašymo būsena ir diegimo pagalba pateikta projekto README.
+
+https://github.com/ponasObuolys/POM-Ponas-Obuolys-Metrics

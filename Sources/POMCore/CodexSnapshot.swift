@@ -11,12 +11,17 @@ public struct CodexSnapshot: Equatable, Sendable {
     public let windowMinutes: Int
     public let capturedAt: Date
     public let planType: String?
+    public let additionalUsage: CodexAdditionalUsage
+    public let ordinaryUsageAllowed: Bool?
 
-    public init(window: UsageWindow, windowMinutes: Int, capturedAt: Date, planType: String? = nil) {
+    public init(window: UsageWindow, windowMinutes: Int, capturedAt: Date, planType: String? = nil,
+                additionalUsage: CodexAdditionalUsage = .init(), ordinaryUsageAllowed: Bool? = nil) {
         self.window = window
         self.windowMinutes = windowMinutes
         self.capturedAt = capturedAt
         self.planType = planType
+        self.additionalUsage = additionalUsage
+        self.ordinaryUsageAllowed = ordinaryUsageAllowed
     }
 }
 
@@ -48,7 +53,35 @@ public enum CodexParser {
 
         let captured = decodeDate(firstValue(root, ["captured_at", "capturedAt"])) ?? capturedAt
         return CodexSnapshot(window: window, windowMinutes: minutes, capturedAt: captured,
-                             planType: firstValue(limits, ["planType", "plan_type"]) as? String)
+                             planType: firstValue(limits, ["planType", "plan_type"]) as? String,
+                             additionalUsage: additionalUsage(in: root, limits: limits),
+                             ordinaryUsageAllowed: (root["result"] as? [String: Any] ?? root)["ordinaryUsageAllowed"] as? Bool)
+    }
+
+    private static func additionalUsage(in root: [String: Any], limits: [String: Any]) -> CodexAdditionalUsage {
+        let body = root["result"] as? [String: Any] ?? root
+        if let cached = root["pomAdditionalUsage"],
+           let data = try? JSONSerialization.data(withJSONObject: cached),
+           let value = try? JSONDecoder().decode(CodexAdditionalUsage.self, from: data) { return value }
+        var extra = CodexAdditionalUsage()
+        if let credits = limits["credits"] as? [String: Any],
+           let has = credits["hasCredits"] as? Bool, let unlimited = credits["unlimited"] as? Bool {
+            extra.credits = CodexCredits(hasCredits: has, unlimited: unlimited, balance: credits["balance"] as? String)
+        }
+        if let cap = limits["individualLimit"] as? [String: Any],
+           let limit = cap["limit"] as? String, let used = cap["used"] as? String,
+           let remaining = finiteNumber(cap["remainingPercent"]), remaining <= 100 {
+            extra.spendLimit = CodexSpendLimit(limit: limit, used: used, remainingPercent: remaining,
+                                             resetsAt: decodeDate(cap["resetsAt"]))
+        }
+        extra.spendControlReached = limits["spendControlReached"] as? Bool
+        if let resets = body["rateLimitResetCredits"] as? [String: Any] {
+            if let count = resets["availableCount"] as? Int, count >= 0 { extra.resetCredits = count }
+            let credits = resets["credits"] as? [[String: Any]] ?? []
+            extra.nextResetCreditExpiry = credits.filter { ($0["status"] as? String)?.lowercased() == "available" }
+                .compactMap { decodeDate($0["expiresAt"]) }.min()
+        }
+        return extra
     }
 
     // MARK: - Pagalbinės
@@ -100,7 +133,7 @@ public enum CodexParser {
     private static func decodeWindow(_ dict: [String: Any]) -> UsageWindow? {
         let percentValue = firstValue(
             dict, ["usedPercent", "used_percent", "used_percentage", "usedPercentage"])
-        guard let percent = decodeNumber(percentValue) else { return nil }
+        guard let percent = finiteNumber(percentValue), percent <= 100_000 else { return nil }
         let resets = decodeDate(firstValue(dict, ["resetsAt", "resets_at"]))
         return UsageWindow(usedPercentage: percent, resetsAt: resets)
     }
@@ -108,7 +141,8 @@ public enum CodexParser {
     private static func decodeMinutes(_ dict: [String: Any]) -> Int {
         let value = firstValue(
             dict, ["windowDurationMins", "window_duration_mins", "windowMinutes", "window_minutes"])
-        return decodeNumber(value).map { Int($0) } ?? 0
+        guard let value = finiteNumber(value), value <= 10_000_000 else { return 0 }
+        return Int(value)
     }
 
     private static func firstValue(_ dict: [String: Any], _ keys: [String]) -> Any? {
@@ -175,6 +209,8 @@ public struct CodexStore: Sendable {
             payload["resets_at"] = resetsAt.timeIntervalSince1970
         }
         if let planType = snapshot.planType { payload["planType"] = planType }
+        payload["ordinaryUsageAllowed"] = snapshot.ordinaryUsageAllowed
+        payload["pomAdditionalUsage"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(snapshot.additionalUsage))
         let data = try JSONSerialization.data(withJSONObject: payload, options: [])
 
         let temporary = directory.appendingPathComponent("\(fileURL.lastPathComponent).\(getpid()).tmp")

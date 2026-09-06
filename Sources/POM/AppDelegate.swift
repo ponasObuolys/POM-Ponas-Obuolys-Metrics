@@ -9,6 +9,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let notifications = NotificationService()
     private var model: UsageViewModel!
     private var codex: CodexViewModel!
+    private var history: HistoryService!
+    private let updater = UpdateService()
+    private var historyWindow: NSWindow?
 
     private var statusItem: NSStatusItem!
     private var popover: NSPopover!
@@ -20,6 +23,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         model = UsageViewModel(settings: settings, notifications: notifications)
         codex = CodexViewModel(settings: settings, notifications: notifications)
 
+        history = HistoryService(settings: settings, notifications: notifications)
+        model.onSnapshot = { [weak self] in self?.history.record($0) }
+        codex.onSnapshot = { [weak self] in self?.history.record($0) }
         setUpStatusItem()
         setUpPopover()
 
@@ -38,7 +44,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         settings.objectWillChange
             .sink { [weak self] _ in
-                Task { @MainActor in self?.updateLabel() }
+                Task { @MainActor in
+                    self?.updateLabel()
+                    self?.historyWindow?.title = self?.settings.text("POM · Naudojimo istorija", "POM · Usage history") ?? "POM"
+                }
             }
             .store(in: &cancellables)
 
@@ -54,7 +63,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         codex.start()
         updateLabel()
 
-        Task { await notifications.prepare() }
+        updater.start()
+        Task {
+            await notifications.prepare()
+            history.deliverPending()
+            if let snapshot = model.snapshot { history.record(snapshot) }
+            if let snapshot = codex.snapshot { history.record(snapshot) }
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -72,79 +87,71 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         button.toolTip = "Claude ir Codex limitai"
     }
 
-    /// Viskas, nuo ko priklauso piešinys. Sutampant su ankstesniu kartu piešti nereikia.
     private struct LabelKey: Equatable {
-        var source: MenuBarSource
-        var values: [Int]
-        var levels: [UsageLevel]
-        var showRemaining: Bool
-        var hasData: Bool
-        var isDark: Bool
-        var scale: CGFloat
+        let sources: [MenuBarSource]
+        let values: [Int]
+        let levels: [UsageLevel]
+        let hasData: [Bool]
+        let remaining: Bool
+        let dark: Bool
+        let scale: CGFloat
+        let language: AppLanguage
     }
-
     private var lastLabelKey: LabelKey?
-
-    /// Kurio įrankio skaičiai piešiami. Pasirinkus Codex, bet jo kompiuteryje neradus,
-    /// rodomas Claude: tuščia ikona be jokio paaiškinimo būtų blogiau nei kito įrankio
-    /// skaičiai. Pats nustatymas neperrašomas, tad grįžus Codex viskas atsistato savaime.
-    private var effectiveSource: MenuBarSource {
-        if settings.menuBarSource == .fable { return .fable }
-        return settings.menuBarSource == .codex && codex.isPresent ? .codex : .claude
+    private var entries: [MenuBarEntry] {
+        settings.menuBarSources.map { source in
+            switch source {
+            case .claude: return MenuBarEntry(source: source, windows: [model.fiveHour, model.sevenDay], hasData: model.hasData)
+            case .fable: return MenuBarEntry(source: source, windows: [model.fable ?? .empty], hasData: model.fable != nil)
+            case .codex: return MenuBarEntry(source: source, windows: [codex.window], hasData: codex.hasData)
+            }
+        }
     }
-
-    /// SwiftUI vaizdas paverčiamas paveikslėliu, o ne dedamas į mygtuką kaip atskiras vaizdas.
-    /// Taip išvengiama išsidėstymo ir paspaudimų problemų, o piešinys lieka aštrus.
-    ///
-    /// Laikrodis tiksi kas kelias sekundes, o skaičiai keičiasi retai. Todėl piešiama tik tada,
-    /// kai iš tikrųjų yra kas pakeisti: programa veikia visą dieną, ir bereikalingas piešimas
-    /// be jokios naudos eikvotų bateriją.
     private func updateLabel() {
         guard let button = statusItem?.button else { return }
-
-        let isDark = button.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+        let dark = button.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
         let scale = button.window?.backingScaleFactor ?? 2
-        let source = effectiveSource
-        let windows: [DisplayWindow]
-        let hasData: Bool
-        switch source {
-        case .claude: windows = [model.fiveHour, model.sevenDay]; hasData = model.hasData
-        case .fable: windows = [model.fable ?? .empty]; hasData = model.fable != nil
-        case .codex: windows = [codex.window]; hasData = codex.hasData
-        }
-
-        let key = LabelKey(
-            source: source,
-            values: windows.map { Int($0.usedPercentage.rounded()) },
-            levels: windows.map(\.level),
-            showRemaining: settings.showRemaining,
-            hasData: hasData,
-            isDark: isDark,
-            scale: scale
-        )
+        let entries = entries
+        let windows = entries.flatMap(\.windows)
+        let key = LabelKey(sources: entries.map(\.source), values: windows.map { Int($0.usedPercentage.rounded()) },
+                           levels: windows.map(\.level), hasData: entries.map(\.hasData), remaining: settings.showRemaining,
+                           dark: dark, scale: scale, language: settings.language.resolved())
         guard key != lastLabelKey else { return }
         lastLabelKey = key
-
-        let label = MenuBarLabelView(
-            source: source,
-            windows: windows,
-            showRemaining: settings.showRemaining,
-            hasData: hasData
-        )
-        .environment(\.colorScheme, isDark ? .dark : .light)
-
-        let renderer = ImageRenderer(content: label)
-        renderer.scale = scale
+        let label = MenuBarGroupView(entries: entries, showRemaining: settings.showRemaining)
+            .environment(\.colorScheme, dark ? .dark : .light)
+        let renderer = ImageRenderer(content: label); renderer.scale = scale
         guard let cgImage = renderer.cgImage else { return }
-
-        let image = NSImage(
-            cgImage: cgImage,
-            size: NSSize(width: MenuBarLabelView.width, height: MenuBarLabelView.height))
+        let width = MenuBarGroupView.width(count: entries.count)
+        let image = NSImage(cgImage: cgImage, size: NSSize(width: width, height: MenuBarLabelView.height))
         image.isTemplate = false
-        button.image = image
-        button.imagePosition = .imageOnly
-        button.toolTip = "\(source.title) limitai"
-        button.setAccessibilityLabel("\(source.title) limitai")
+        statusItem.length = width
+        button.image = image; button.imagePosition = .imageOnly
+        let tooltip = entries.map { entry in
+            let values = entry.hasData ? entry.windows.map {
+                "\(Int((settings.showRemaining ? $0.remainingPercentage : $0.usedPercentage).rounded()))%"
+            }.joined(separator: " / ") : settings.text("duomenų nėra", "no data")
+            return "\(entry.source.title): \(values)"
+        }.joined(separator: " · ")
+        button.toolTip = tooltip
+        button.setAccessibilityLabel(tooltip)
+    }
+
+    private func showHistory() {
+        closePopover()
+        if historyWindow == nil {
+            let controller = NSHostingController(rootView: HistoryView(service: history, settings: settings))
+            let window = NSWindow(contentViewController: controller)
+            window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+            window.setContentSize(NSSize(width: 840, height: 660))
+            window.contentMinSize = NSSize(width: 780, height: 660)
+            window.isReleasedWhenClosed = false
+            window.center()
+            historyWindow = window
+        }
+        historyWindow?.title = settings.text("POM · Naudojimo istorija", "POM · Usage history")
+        NSApp.activate(ignoringOtherApps: true)
+        historyWindow?.makeKeyAndOrderFront(nil)
     }
 
     // MARK: - Langelis
@@ -155,7 +162,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         popover.animates = true
 
         let controller = NSHostingController(
-            rootView: UsagePanelView(model: model, codex: codex, settings: settings))
+            rootView: UsagePanelView(model: model, codex: codex, settings: settings, updater: updater,
+                                     showHistory: { [weak self] in self?.showHistory() }))
         // Be šito langelio aukštis užsifiksuotų tą akimirką, kai jis sukuriamas.
         // Codex sekcija atsiranda maždaug sekunde vėliau, gavus atsakymą, ir turinys
         // nebetelptų: viršuje liktų nukirsta antraštė, o virš jos – nematoma lango dalis.

@@ -65,6 +65,7 @@ public struct SnapshotStore: Sendable {
         ]
         if let fable = snapshot.fable { payload["seven_day_fable"] = encode(fable) }
         if let plan = snapshot.plan { payload["plan"] = plan }
+        if let extra = snapshot.extraUsage { payload["extra_usage"] = extra.json }
         let data = try JSONSerialization.data(withJSONObject: payload, options: [])
 
         let temporary = directory.appendingPathComponent("\(fileURL.lastPathComponent).\(getpid()).tmp")

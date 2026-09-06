@@ -11,8 +11,8 @@ import UserNotifications
 /// Tačiau macOS pranešimų registracijai reikalauja Apple išduoto kūrėjo parašo.
 /// Patikrinta: nei laikinas (ad-hoc), nei savadarbis pastovus parašas nepadeda,
 /// net ir pažymėjus sertifikatą kaip patikimą – atsakoma „Notifications are not
-/// allowed for this application“. Todėl naudojamas atsarginis kelias per sisteminę
-/// `osascript` komandą, kuri veikia visada. Pranešime POM nurodoma antrašte,
+/// allowed for this application“. Tokiai registracijos klaidai paliktas atsarginis
+/// kelias per `osascript`. Vartotojo atsisakymas nėra apeinamas. Pranešime POM nurodoma antrašte,
 /// kad būtų aišku, kas praneša.
 @MainActor
 final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
@@ -23,6 +23,7 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
         case script
         /// Programa paleista be paketo, pranešimai negalimi.
         case unavailable
+        case denied
     }
 
     private(set) var delivery: Delivery = .unavailable
@@ -48,8 +49,8 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
         // Leidimo langelį macOS rodo tik aktyviai programai. POM gyvena meniu juostoje ir
         // priekiniame plane nebūna niekada, todėl užklausos metu ji trumpam aktyvuojama.
         NSApplication.shared.activate(ignoringOtherApps: true)
-        delivery = await requestAuthorization() ? .system : .script
-        isReady = true
+        delivery = await requestAuthorization()
+        isReady = delivery != .unavailable
     }
 
     func post(subtitle: String, body: String) {
@@ -66,17 +67,19 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
         case .script:
             postViaScript(title: "POM", subtitle: subtitle, body: body)
 
-        case .unavailable:
+        case .unavailable, .denied:
             break
         }
     }
 
-    var statusNote: String? {
+    func statusNote(_ language: AppLanguage) -> String? {
         switch delivery {
         case .system, .script:
             return nil
         case .unavailable:
-            return "Pranešimai veikia tik įdiegus programą į /Applications."
+            return language.text("Pranešimai veikia tik įdiegus programą į /Applications.", "Notifications require POM to be installed in /Applications.")
+        case .denied:
+            return language.text("Pranešimai išjungti macOS nustatymuose.", "Notifications are disabled in macOS settings.")
         }
     }
 
@@ -90,21 +93,32 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
 
     // MARK: - Pagalbinės
 
-    private func requestAuthorization() async -> Bool {
-        let timeout = authorizationTimeout
-        return await withTaskGroup(of: Bool?.self) { group in
-            group.addTask {
-                (try? await UNUserNotificationCenter.current()
-                    .requestAuthorization(options: [.alert, .sound])) ?? false
+    private func requestAuthorization() async -> Delivery {
+        await withCheckedContinuation { continuation in
+            let completion = AuthorizationCompletion(continuation)
+            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, error in
+                Task { @MainActor in
+                    // A user's refusal must never be bypassed through AppleScript.
+                    let result: Delivery = granted ? .system : (error == nil ? .denied : .script)
+                    self.delivery = result
+                    self.isReady = true
+                    completion.finish(result)
+                }
             }
-            group.addTask {
-                try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
-                return nil
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(authorizationTimeout))
+                // Do not bypass a pending permission dialog when the API is slow.
+                completion.finish(.unavailable)
             }
+        }
+    }
 
-            let first = await group.next() ?? nil
-            group.cancelAll()
-            return first ?? false
+    @MainActor private final class AuthorizationCompletion {
+        private var continuation: CheckedContinuation<Delivery, Never>?
+        init(_ continuation: CheckedContinuation<Delivery, Never>) { self.continuation = continuation }
+        func finish(_ delivery: Delivery) {
+            continuation?.resume(returning: delivery)
+            continuation = nil
         }
     }
 
