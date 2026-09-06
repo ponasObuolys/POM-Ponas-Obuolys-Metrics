@@ -10,8 +10,15 @@ POM follows your Mac's language (Lithuanian or English; other languages use Engl
 You can switch immediately in Settings > Language. History shows 30 days of tokens: Claude Code on this Mac and Codex account usage.
 The first local import runs in small background batches. No API key is required.
 
+Support POM (optional)
+POM is free and open source. Use Support POM in the app or the Support POM link
+in this disk image to make a one-time contribution. Choose your amount (€5 suggested).
+A reminder appears on first launch and after updates, at most once every seven days.
+Choose Not now or close the window to continue. All features stay free.
+https://buy.stripe.com/9B65kE4VZaDL5uI33F6Zy00
+
 If macOS blocks the app, confirm that it came from the official GitHub release.
-This 2.2.2 release and older releases are not Apple-notarized. Do not disable Gatekeeper.
+This 2.2.3 release and older releases are not Apple-notarized. Do not disable Gatekeeper.
 See the current signing status and installation help in the repository README.
 
 Lietuviškai
@@ -25,8 +32,15 @@ Istorija rodo 30 dienų tokenus: Claude Code šiame Mac ir Codex paskyros naudoj
 Pirmas vietinių įrašų importas vyksta mažomis porcijomis fone.
 API rakto nereikia.
 
+Paremti POM (neprivaloma)
+POM nemokama ir atvirojo kodo. Mygtukas Paremti POM programoje arba paramos nuoroda
+šiame DMG atveria vienkartinės paramos puslapį. Sumą pasirenki pats, siūlomi 5 €.
+Priminimas rodomas pirmą kartą paleidus programą ir po atnaujinimų, ne dažniau kaip
+kartą per septynias dienas. Jį galima užverti arba pasirinkti Gal vėliau. Visos funkcijos lieka nemokamos.
+https://buy.stripe.com/9B65kE4VZaDL5uI33F6Zy00
+
 Jei macOS blokuoja programą, patikrink, ar ji gauta iš oficialaus GitHub leidimo.
-Šis 2.2.2 leidimas ir ankstesni leidimai Apple nenotarizuoti. Neišjunk Gatekeeper apsaugos.
+Šis 2.2.3 leidimas ir ankstesni leidimai Apple nenotarizuoti. Neišjunk Gatekeeper apsaugos.
 Pasirašymo būsena ir diegimo pagalba pateikta projekto README.
 
 https://github.com/ponasObuolys/POM-Ponas-Obuolys-Metrics

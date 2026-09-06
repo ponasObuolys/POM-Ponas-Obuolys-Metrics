@@ -177,16 +177,22 @@ struct UsagePanelView: View {
                 Text(model.sourceText)
                     .font(.system(size: 10))
                     .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+                    .layoutPriority(-1)
             }
 
             Spacer()
 
             Link(destination: ProjectLinks.support) {
-                Image(systemName: "heart")
-                    .font(.system(size: 12, weight: .medium))
+                Label(settings.text("Paremti POM", "Support POM"), systemImage: "heart")
+                    .font(.system(size: 11, weight: .semibold))
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 5)
+                    .background(Color.accentColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
             }
-            .buttonStyle(IconButtonStyle())
-            .accessibilityLabel(settings.text("Paremti POM", "Support POM"))
+            .buttonStyle(.plain)
+            .foregroundStyle(Color.accentColor)
+            .fixedSize()
             .help(settings.text("Paremti POM kūrimą per Stripe", "Support POM development via Stripe"))
 
             Button(action: refreshEverything) {

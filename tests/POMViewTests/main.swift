@@ -21,6 +21,9 @@ import POMCore
         defer { defaults.removePersistentDomain(forName: suite) }
         defaults.set("codex", forKey: "menuBarSource")
         let settings = Settings(defaults: defaults)
+        let reminderDate = Date(timeIntervalSince1970: 1_800_000_000)
+        precondition(settings.supportReminderForLaunch(version: "2.2.3", now: reminderDate) == .welcome)
+        precondition(Settings(defaults: defaults).supportReminderForLaunch(version: "2.2.3", now: reminderDate.addingTimeInterval(30 * 86400)) == nil)
         precondition(settings.menuBarSources == [.codex], "Existing source preference must migrate")
         settings.setSource(.codex, enabled: false)
         precondition(settings.menuBarSources == [.codex], "At least one source must remain")
@@ -45,6 +48,12 @@ import POMCore
         precondition(connected.isBridgeConnected)
         try render(UsagePanelView(model: connected, codex: codex, settings: settings), name: "normal-light", directory: output, scheme: .light)
         try render(UsagePanelView(model: connected, codex: codex, settings: settings), name: "normal-dark", directory: output, scheme: .dark)
+        settings.language = .en
+        try render(SupportReminderView(settings: settings, occasion: .welcome, version: "2.2.3", dismiss: {}), name: "support-welcome-en", directory: output, scheme: .light)
+        try render(SupportReminderView(settings: settings, occasion: .update, version: "2.2.3", dismiss: {}), name: "support-update-en", directory: output, scheme: .dark)
+        settings.language = .lt
+        try render(SupportReminderView(settings: settings, occasion: .welcome, version: "2.2.3", dismiss: {}), name: "support-welcome-lt", directory: output, scheme: .light)
+        try render(SupportReminderView(settings: settings, occasion: .update, version: "2.2.3", dismiss: {}), name: "support-update-lt", directory: output, scheme: .dark)
         settings.language = .en
         try render(UsagePanelView(model: connected, codex: codex, settings: settings), name: "english-light", directory: output, scheme: .light)
         try render(ExtraUsageView(settings: settings, claude: ClaudeExtraUsage(enabled: true, used: 1234, limit: 5000, percentage: 24.68, currency: "USD", decimalPlaces: 2)).frame(width: 310), name: "claude-credits", directory: output, scheme: .light)

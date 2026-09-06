@@ -51,6 +51,7 @@ struct SettingsMenu: View {
                 Label(settings.text("Paremti POM…", "Support POM…"), systemImage: "heart")
             }
 
+            Divider()
             Button(settings.text("Baigti POM darbą", "Quit POM")) { NSApplication.shared.terminate(nil) }
         } label: {
             Image(systemName: "gearshape")

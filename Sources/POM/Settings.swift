@@ -79,6 +79,17 @@ final class Settings: ObservableObject {
     @Published var recoveryNotifications: Bool {
         didSet { defaults.set(recoveryNotifications, forKey: "recoveryNotifications") }
     }
+    func supportReminderForLaunch(version: String, now: Date = Date()) -> SupportReminderPolicy.Occasion? {
+        let stored = defaults.data(forKey: "supportReminderState")
+            .flatMap { try? JSONDecoder().decode(SupportReminderPolicy.self, from: $0) } ?? SupportReminderPolicy()
+        var policy = stored
+        let occasion = policy.recordLaunch(version: version, now: now)
+        if policy != stored, let data = try? JSONEncoder().encode(policy) {
+            defaults.set(data, forKey: "supportReminderState")
+        }
+        return occasion
+    }
+
     var locale: Locale { language.locale }
     func text(_ lt: String, _ en: String) -> String { language.text(lt, en) }
     func setSource(_ source: MenuBarSource, enabled: Bool) {

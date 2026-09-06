@@ -17,6 +17,7 @@ trap 'rm -rf "$staging"' EXIT
 ditto "$app" "$staging/POM.app"
 ln -s /Applications "$staging/Applications"
 cp "$root/docs/INSTALL.txt" "$staging/Read Me - Skaityk mane.txt"
+cp "$root/docs/Support POM.webloc" "$staging/Support POM - Paremti.webloc"
 if [[ "${POM_RELEASE:-0}" != 1 && "${POM_PUBLIC_UNNOTARIZED:-0}" == 1 ]]; then
   printf '%s\n' 'UNNOTARIZED RELEASE — ad-hoc signed, not approved by Apple.' \
     'macOS may block the first launch. See the release notes and Read Me.' \

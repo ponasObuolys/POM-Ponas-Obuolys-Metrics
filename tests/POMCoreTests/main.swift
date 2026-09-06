@@ -1047,6 +1047,26 @@ do {
     check("tokens: missing sessions unavailable, not invented zero", try !missing.scanBatch(now: now).available)
 } catch { failures.append("token history: \(error)") }
 
+// MARK: - Paramos priminimų dažnis ir versijų kaita
+
+do {
+    let now = date(1_800_000_000)
+    var policy = SupportReminderPolicy()
+    checkEqual("support: first launch", policy.recordLaunch(version: "2.2.3", now: now), .welcome)
+    policy = try JSONDecoder().decode(SupportReminderPolicy.self, from: JSONEncoder().encode(policy))
+    check("support: relaunch after a month stays quiet", policy.recordLaunch(version: "2.2.3", now: now.addingTimeInterval(30 * 86400)) == nil)
+    check("support: rapid patch is skipped", policy.recordLaunch(version: "2.2.4", now: now.addingTimeInterval(86400)) == nil)
+    check("support: skipped patch never nags later", policy.recordLaunch(version: "2.2.4", now: now.addingTimeInterval(8 * 86400)) == nil)
+    checkEqual("support: numeric version comparison and seven-day boundary", policy.recordLaunch(version: "2.2.10", now: now.addingTimeInterval(7 * 86400)), .update)
+    check("support: downgrade stays quiet", policy.recordLaunch(version: "2.2.3", now: now.addingTimeInterval(40 * 86400)) == nil)
+    check("support: reinstalling highest version stays quiet", policy.recordLaunch(version: "2.2.10", now: now.addingTimeInterval(40 * 86400)) == nil)
+    check("support: clock moved backwards stays quiet", policy.recordLaunch(version: "2.3.1", now: now.addingTimeInterval(-86400)) == nil)
+    checkEqual("support: later update recovers normally", policy.recordLaunch(version: "2.3.2", now: now.addingTimeInterval(50 * 86400)), .update)
+    let saved = policy
+    check("support: development builds ignored", policy.recordLaunch(version: "dev", now: now.addingTimeInterval(60 * 86400)) == nil)
+    checkEqual("support: invalid version leaves state unchanged", policy, saved)
+} catch { failures.append("support reminders: \(error)") }
+
 // MARK: - Rezultatas
 
 print("")

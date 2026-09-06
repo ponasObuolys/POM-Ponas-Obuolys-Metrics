@@ -12,6 +12,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var history: HistoryService!
     private let updater = UpdateService()
     private var historyWindow: NSWindow?
+    private var supportWindow: NSWindow?
+    private var supportReminderChecked = false
 
     private var statusItem: NSStatusItem!
     private var popover: NSPopover!
@@ -47,6 +49,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 Task { @MainActor in
                     self?.updateLabel()
                     self?.historyWindow?.title = self?.settings.text("POM · Naudojimo istorija", "POM · Usage history") ?? "POM"
+                    self?.supportWindow?.title = self?.settings.text("POM · Paremti kūrimą", "POM · Support development") ?? "POM"
                 }
             }
             .store(in: &cancellables)
@@ -70,6 +73,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             history.deliverPending()
             if let snapshot = model.snapshot { history.record(snapshot) }
             if let snapshot = codex.snapshot { history.record(snapshot) }
+            // Avoid presenting over an unresolved notification-permission prompt.
+            if notifications.isReady { showSupportReminderIfNeeded() }
         }
     }
 
@@ -156,6 +161,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         historyWindow?.makeKeyAndOrderFront(nil)
     }
 
+    private func showSupportReminderIfNeeded() {
+        guard !supportReminderChecked else { return }
+        supportReminderChecked = true
+        guard let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
+              let occasion = settings.supportReminderForLaunch(version: version) else { return }
+        let view = SupportReminderView(settings: settings, occasion: occasion, version: version,
+                                       dismiss: { [weak self] in self?.supportWindow?.close() })
+        let controller = NSHostingController(rootView: view)
+        controller.sizingOptions = [.preferredContentSize]
+        let window = NSWindow(contentViewController: controller)
+        window.styleMask = [.titled, .closable]
+        window.title = settings.text("POM · Paremti kūrimą", "POM · Support development")
+        window.isReleasedWhenClosed = false
+        window.delegate = self
+        window.center()
+        supportWindow = window
+        // A normal, non-modal window; do not take the user's keyboard focus.
+        window.orderFrontRegardless()
+    }
+
     // MARK: - Langelis
 
     private func setUpPopover() {
@@ -190,6 +215,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.contentViewController?.view.window?.makeKey()
         watchForClicksOutside()
+        showSupportReminderIfNeeded()
     }
 
     /// Langelis turi užsidaryti paspaudus bet kur šalia jo.
@@ -215,6 +241,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let monitor = outsideClickMonitor else { return }
         NSEvent.removeMonitor(monitor)
         outsideClickMonitor = nil
+    }
+}
+
+extension AppDelegate: NSWindowDelegate {
+    func windowWillClose(_ notification: Notification) {
+        if let window = notification.object as? NSWindow, window === supportWindow {
+            supportWindow = nil
+        }
     }
 }
 

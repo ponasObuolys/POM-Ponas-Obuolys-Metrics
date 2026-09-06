@@ -3,13 +3,13 @@
 ## Current state
 
 As checked on 2026-09-06, this Mac has **no valid Developer ID Application identity**.
-The published 2.2.2 DMG (like 2.2.1 and 2.1.2) is ad-hoc signed. Its Gatekeeper warning cannot be fixed by
+The published 2.2.3 DMG (like earlier releases) is ad-hoc signed. Its Gatekeeper warning cannot be fixed by
 renaming the DMG, compiling again or creating another self-signed certificate.
-Manual publication without notarization was explicitly authorized for 2.2.1 and continued for the 2.2.2 support-link update.
+Manual publication without notarization was explicitly authorized for 2.2.1 and continued for the 2.2.2/2.2.3 support updates.
 A notarized release still requires Apple signing credentials.
 
 The automated signed-release pipeline still requires Developer ID and notarization.
-The manual 2.2.1/2.2.2 exception publishes a clearly labelled unnotarized DMG, its SHA-256
+The manual 2.2.x exception publishes a clearly labelled unnotarized DMG, its SHA-256
 checksum and a signed informational appcast. It does not weaken the automated
 signing/notarization checks. Local builds remain marked as development builds by
 default; `POM_PUBLIC_UNNOTARIZED=1 bash scripts/make-dmg.sh` replaces that package

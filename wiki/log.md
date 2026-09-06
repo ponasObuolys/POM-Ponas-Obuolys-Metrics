@@ -46,3 +46,10 @@ notarizuoto leidimo patikros lieka galioti.
 Stripe sukurta aktyvi vienkartinė EUR paramos nuoroda Ponas Obuolys, MB paskyroje.
 Pridėti lokalizuoti programos mygtukai, GitHub Sponsor ir README nuorodos.
 Šaltinis: [[wiki/synthesis/pom-2-2-2]].
+
+## 2026-09-06 · 2.2.3 matomi priminimai
+
+Pridėtas ramus pirmo paleidimo ir atnaujinimo langas, 7 dienų riba ir laikinas užvėrimas.
+Vartotojo patikslinimu nuolatinio priminimų išjungimo pasirinkimas pašalintas.
+Paramos mygtukas su tekstu pagrindiniame lange, nuoroda DMG bei LT/EN diegimo aprašymas.
+Šaltinis: [[wiki/synthesis/pom-2-2-3]].
