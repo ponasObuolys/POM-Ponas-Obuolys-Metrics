@@ -10,7 +10,7 @@ reset times and extra credits into one small window.
 ![Apple silicon and Intel](https://img.shields.io/badge/Mac-Apple_silicon_%26_Intel-blue)
 ![MIT license](https://img.shields.io/badge/license-MIT-green)
 
-> **2.2 development preview.** The features below are implemented in the source tree.
+> **2.2.1 development preview.** The features below are implemented in the source tree.
 > The latest published release is still 2.1.2. A trusted 2.2 installer is pending
 > Developer ID signing and Apple notarization; development builds are not notarized.
 
@@ -23,13 +23,17 @@ reset times and extra credits into one small window.
 - **Extra usage:** Claude's enabled state, monthly usage percentage and spending amounts when currency/scale are provided; Codex credit balances, monthly credit limits and available limit resets when reported. POM does not buy or redeem credits.
 - **Several indicators at once:** choose Claude, Fable and Codex individually in the menu bar. Switch between used and remaining percentages.
 - **Useful notifications:** configurable low-limit warnings and a notification when fresh data confirms that an exhausted limit has recovered.
-- **7- and 30-day history:** interactive charts of the readings collected on your Mac, with separate lines for each limit.
+- **7- and 30-day token history:** two daily series, Claude and Codex, with totals across all models. Claude Code usage comes from this Mac; Codex usage comes from your account.
 - **English and Lithuanian:** follows your Mac's primary language, with an immediate manual switch in Settings. Other system languages use English.
 - **In-app updates:** Sparkle checks for updates and offers installation from a signed update feed. Public releases require Developer ID signing and notarization.
 
-![POM usage history with separate Claude, Fable and Codex series](docs/images/history-en.png)
+![POM daily Claude and Codex token usage and period totals](docs/images/history-en.png)
 
-*Interface previews use sample readings. History is collected locally; past usage cannot be backfilled from provider responses. Gaps represent missing readings or a new limit period. These are usage percentages, not token counts or a prediction of when you will run out.*
+*Interface previews use sample data. Token totals do not reset with quota windows. Claude includes input, output, cache reads and cache writes, deduplicated across local sessions and subagents. Claude web and other devices are not included. Codex uses account token totals as reported by the service. Claude days use UTC; Codex supplies date-only buckets without timezone metadata. Today is partial. These are token counts, not billing amounts or a forecast.*
+
+History refreshes every 15 minutes. The first Claude import runs in small background
+batches; later refreshes read only appended bytes. No transcript contents are read
+when files have not changed. There is no permanent extra CLI process.
 
 ## Install
 
@@ -59,11 +63,13 @@ POM asks the installed CLIs for usage; it does not send a chat message to a mode
 CLI sign-in and credential refresh remain with the respective provider. No separate
 API key is needed. An optional Claude server fallback is disabled by default.
 
-POM stores recent readings and 30 days of history in `~/Library/Application Support/POM`.
-History contains timestamps, limit percentages and reset times, not prompts, messages
-or access tokens. It stays on this Mac and can be cleared in the history window.
-POM does not upload history or add analytics. Limits from different providers are
-kept separate; missing values are shown as unavailable.
+POM stores recent limits and 30 days of token metadata in `~/Library/Application Support/POM`.
+Claude sessions are read locally to extract counts. The index stores hashed message/file
+identifiers, offsets, dates and counts, never prompts, messages or access tokens.
+Codex account history is fetched through the signed-in CLI and cached on this Mac.
+POM does not upload history or add analytics. Missing sources are marked unavailable.
+To remove the cache, quit POM and remove `claude-token-index.sqlite`,
+`claude-tokens.json` and `codex-tokens.json` from that folder. They rebuild on the next launch.
 
 ## Build and contribute
 
@@ -80,7 +86,7 @@ and Apple's command line tools. `bash scripts/make-dmg.sh` creates a clearly mar
 **development** DMG. This does not make it a trusted public installer.
 
 See the [developer guide](claudedocs/README.md), [release signing guide](docs/RELEASING.md)
-and [2.2 release notes](docs/releases/2.2.0.md). Bug reports should include your macOS,
+and [2.2.1 release notes](docs/releases/2.2.1.md). Bug reports should include your macOS,
 POM and CLI versions plus the exact error text; omit credentials and private conversations.
 
 ## License

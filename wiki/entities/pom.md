@@ -24,7 +24,9 @@ atnaujinimu pasirūpina Claude Code. Sąsaja priklauso nuo Claude Code versijos;
 gyvai patikrinta 2.1.263. Automatinio sėkmingų užklausų ciklo intervalas – 5 minutės.
 
 Codex duomenys gaunami per vietinio `codex app-server` metodą
-`account/rateLimits/read`. Šaltiniai turi atskirus paskutinių duomenų failus.
+`account/rateLimits/read`; nuo 2.2.1 tokenų istorija gaunama per
+`account/usage/read`. Claude tokenai skaitomi inkrementiškai iš vietinių JSONL.
+Šaltiniai turi atskirus paskutinių duomenų failus.
 
 `ProviderMarkView` bendras meniu juostai ir lango antraštėms. Anthropic bei
 ChatGPT SVG ir jų licencija įdedami į `POM_POM.bundle`. Supakuota programa

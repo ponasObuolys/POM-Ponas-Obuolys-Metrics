@@ -7,8 +7,8 @@ English
 4. Open Settings to select indicators, alerts, Language and automatic updates.
 
 POM follows your Mac's language (Lithuanian or English; other languages use English).
-You can switch immediately in Settings > Language. History begins with new readings
-and stays on this Mac for 30 days. No API key is required.
+You can switch immediately in Settings > Language. History shows 30 days of tokens: Claude Code on this Mac and Codex account usage.
+The first local import runs in small background batches. No API key is required.
 
 If macOS blocks the app, confirm that it came from the official GitHub release.
 Older releases through 2.1.2 are not notarized. Do not disable Gatekeeper.
@@ -21,7 +21,8 @@ Lietuviškai
 4. Nustatymuose pasirink indikatorius, pranešimus, kalbą ir naujinimus.
 
 POM parenka kompiuterio kalbą. Ją galima iš karto pakeisti nustatymuose.
-Istorija kaupiama nuo naujų duomenų gavimo ir šiame kompiuteryje saugoma 30 dienų.
+Istorija rodo 30 dienų tokenus: Claude Code šiame Mac ir Codex paskyros naudojimą.
+Pirmas vietinių įrašų importas vyksta mažomis porcijomis fone.
 API rakto nereikia.
 
 Jei macOS blokuoja programą, patikrink, ar ji gauta iš oficialaus GitHub leidimo.

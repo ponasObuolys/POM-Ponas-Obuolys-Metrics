@@ -3,10 +3,20 @@ import POMCore
 
 @MainActor
 final class HistoryService: ObservableObject {
-    @Published private(set) var history: UsageHistory
+    @Published private(set) var claude: TokenUsageSnapshot?
+    @Published private(set) var codex: TokenUsageSnapshot?
+    @Published private(set) var importing = false
+    @Published private(set) var fetchingCodex = false
+    @Published private(set) var claudeUnavailable = false
+    @Published private(set) var codexUnavailable = false
+    @Published private(set) var skippedLines = 0
+    private let worker: TokenHistoryWorker
+    private var timer: Timer?
+    private var claudeTask: Task<Void, Never>?
+    private var codexTask: Task<Void, Never>?
+    private var lastAttempt: Date?
     @Published private(set) var saveFailed = false
     private var recovery: RecoveryTracker
-    private let historyURL: URL
     private let recoveryURL: URL
     private let settings: Settings
     private let notifications: NotificationService
@@ -14,11 +24,13 @@ final class HistoryService: ObservableObject {
     private var pending: [(HistorySeries, Double)] = []
 
     init(settings: Settings, notifications: NotificationService,
-         directory: URL = POMPaths.supportDirectory) {
+         directory: URL = POMPaths.supportDirectory,
+         home: URL = FileManager.default.homeDirectoryForCurrentUser,
+         previewClaude: TokenUsageSnapshot? = nil, previewCodex: TokenUsageSnapshot? = nil) {
         self.settings = settings; self.notifications = notifications
-        historyURL = directory.appendingPathComponent("usage-history.json")
+        worker = TokenHistoryWorker(directory: directory, root: home.appendingPathComponent(".claude/projects"))
+        claude = previewClaude; codex = previewCodex
         recoveryURL = directory.appendingPathComponent("recovery-state.json")
-        history = UsageHistory.load(from: historyURL)
         recovery = (try? Data(contentsOf: recoveryURL)).flatMap {
             try? JSONDecoder().decode(RecoveryTracker.self, from: $0)
         } ?? RecoveryTracker()
@@ -42,13 +54,10 @@ final class HistoryService: ObservableObject {
         guard lastObserved[series].map({ captured > $0 }) ?? true else { return }
         lastObserved[series] = captured
         let now = Date()
-        let changed = history.append(HistoryPoint(series: series, capturedAt: captured,
-                                                  percentage: window.usedPercentage, resetsAt: window.resetsAt), now: now)
         let recovered = recovery.observe(id: series.rawValue, window: window, capturedAt: captured,
                                          now: now, ordinaryUsageAllowed: allowed,
                                          requiresAvailability: series == .codexWeekly)
         do {
-            if changed { try history.save(to: historyURL) }
             try FileManager.default.createDirectory(at: recoveryURL.deletingLastPathComponent(), withIntermediateDirectories: true)
             try JSONEncoder().encode(recovery).write(to: recoveryURL, options: .atomic)
             saveFailed = false
@@ -68,12 +77,54 @@ final class HistoryService: ObservableObject {
         }
     }
 
-    func clear() {
-        do {
-            try UsageHistory().save(to: historyURL)
-            history = UsageHistory()
-            saveFailed = false
-        } catch { saveFailed = true }
+    func start() {
+        guard timer == nil else { return }
+        timer = Timer.scheduledTimer(withTimeInterval: 15 * 60, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.refresh() }
+        }
+        timer?.tolerance = 60
+        refresh()
+    }
+
+    func stop() {
+        timer?.invalidate(); timer = nil
+        claudeTask?.cancel(); codexTask?.cancel()
+    }
+
+    func refresh() {
+        guard lastAttempt.map({ Date().timeIntervalSince($0) >= 60 }) ?? true else { return }
+        lastAttempt = Date()
+        if claudeTask == nil {
+            importing = true
+            claudeTask = Task(priority: .background) {
+                defer { importing = false; claudeTask = nil }
+                do {
+                    if claude == nil { claude = await worker.cached(provider: "claude") }
+                    try await worker.begin()
+                    while !Task.isCancelled {
+                        let batch = try await worker.batch()
+                        claude = batch.available || !batch.snapshot.days.isEmpty ? batch.snapshot : nil
+                        claudeUnavailable = !batch.available
+                        skippedLines = batch.skippedLines
+                        if batch.complete { break }
+                        // Cooperative sleep: no thread or process remains busy while waiting.
+                        try await Task.sleep(for: .seconds(ProcessInfo.processInfo.isLowPowerModeEnabled ? 2 : 0.5))
+                    }
+                } catch is CancellationError { }
+                catch { claudeUnavailable = true }
+            }
+        }
+        if codexTask == nil {
+            fetchingCodex = true
+            codexTask = Task(priority: .background) {
+                defer { fetchingCodex = false; codexTask = nil }
+                if codex == nil { codex = await worker.cached(provider: "codex") }
+                do {
+                    codex = try await worker.fetchCodex()
+                    codexUnavailable = false
+                } catch { codexUnavailable = true }
+            }
+        }
     }
 }
 
@@ -93,4 +144,39 @@ struct LocalizedNote {
     let en: String
     init(_ lt: String, _ en: String) { self.lt = lt; self.en = en }
     func text(_ language: AppLanguage) -> String { language.text(lt, en) }
+}
+
+
+/// All transcript discovery, SQLite work and CLI waiting run away from the UI.
+private actor TokenHistoryWorker {
+    let directory: URL
+    let root: URL
+    var indexer: ClaudeTokenIndexer?
+    init(directory: URL, root: URL) { self.directory = directory; self.root = root }
+    func cached(provider: String) -> TokenUsageSnapshot? {
+        let url = directory.appendingPathComponent("\(provider)-tokens.json")
+        guard let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize, size <= 64 * 1024,
+              let data = try? Data(contentsOf: url) else { return nil }
+        return try? JSONDecoder().decode(TokenUsageSnapshot.self, from: data)
+    }
+    func begin() throws {
+        if indexer == nil { indexer = try ClaudeTokenIndexer(root: root, database: directory.appendingPathComponent("claude-token-index.sqlite")) }
+        try indexer!.begin()
+    }
+    func batch() throws -> ClaudeTokenIndexer.Batch {
+        let batch = try indexer!.scanBatch(maxSeconds: 0.05)
+        // Save only a completed import; a crash must not turn partial totals into a complete history.
+        if batch.complete, batch.available { try save(batch.snapshot, provider: "claude") }
+        return batch
+    }
+    func fetchCodex() throws -> TokenUsageSnapshot {
+        guard case let .ready(executable) = CodexLocator.availability() else { throw CodexClient.ClientError.noResponse }
+        let snapshot = try CodexClient().fetchUsage(executable: executable)
+        try save(snapshot, provider: "codex")
+        return snapshot
+    }
+    private func save(_ snapshot: TokenUsageSnapshot, provider: String) throws {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try JSONEncoder().encode(snapshot).write(to: directory.appendingPathComponent("\(provider)-tokens.json"), options: .atomic)
+    }
 }

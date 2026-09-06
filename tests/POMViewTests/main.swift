@@ -53,22 +53,16 @@ import POMCore
         let historyDirectory = root.appendingPathComponent("history")
         let emptyHistory = HistoryService(settings: settings, notifications: notifications, directory: historyDirectory)
         try render(HistoryView(service: emptyHistory, settings: settings), name: "history-empty", directory: output, scheme: .light)
-        var history = UsageHistory()
         let now = Date()
-        for hour in 0..<168 {
-            for (index, series) in HistorySeries.allCases.enumerated() {
-                let time = now.addingTimeInterval(Double(hour - 168) * 3600)
-                let cycle = series == .claudeSession ? 5 : 72
-                let percent = Double((hour % cycle) * (index + 2)) .truncatingRemainder(dividingBy: 100)
-                let reset = now.addingTimeInterval(Double((hour / cycle + 1) * cycle - 168) * 3600)
-                history.append(HistoryPoint(series: series, capturedAt: time, percentage: percent, resetsAt: reset), now: now)
-            }
-        }
-        try history.save(to: historyDirectory.appendingPathComponent("usage-history.json"))
-        let populated = HistoryService(settings: settings, notifications: notifications, directory: historyDirectory)
+        let keys = UsageDay.keys(days: 30, now: now)
+        let claudeDays = keys.enumerated().map { TokenDay(day: $0.element, tokens: Int64([320000, 1450000, 820000, 2600000, 1800000, 960000, 2100000][$0.offset % 7])) }
+        let codexDays = keys.enumerated().map { TokenDay(day: $0.element, tokens: Int64([780000, 920000, 1700000, 1200000, 2900000, 2300000, 3600000][$0.offset % 7])) }
+        let populated = HistoryService(settings: settings, notifications: notifications, directory: historyDirectory,
+            previewClaude: TokenUsageSnapshot(days: claudeDays, updatedAt: now), previewCodex: TokenUsageSnapshot(days: codexDays, updatedAt: now))
         try render(HistoryView(service: populated, settings: settings), name: "history-english", directory: output, scheme: .light)
         settings.language = .lt
         try render(HistoryView(service: populated, settings: settings), name: "history-lithuanian", directory: output, scheme: .dark)
+        try render(HistoryView(service: populated, settings: settings, days: 30), name: "history-thirty-days", directory: output, scheme: .light)
         let group = MenuBarGroupView(entries: [MenuBarEntry(source: .claude, windows: [connected.fiveHour, connected.sevenDay], hasData: true), MenuBarEntry(source: .codex, windows: [codex.window], hasData: true)], showRemaining: false)
         try render(group, name: "menubar-together", directory: output, scheme: .light)
         let newer = UsageSnapshot(fiveHour: UsageWindow(usedPercentage: 9, resetsAt: nil), sevenDay: UsageWindow(usedPercentage: 5, resetsAt: nil), capturedAt: Date(), source: .statusline)

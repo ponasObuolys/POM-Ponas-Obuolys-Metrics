@@ -29,17 +29,41 @@ Caches are separate per source under `~/Library/Application Support/POM`:
 New fields remain optional so 2.1 caches still load. A generic snapshot without
 Fable/credit fields does not erase newer complete CLI metadata.
 
-`usage-history.json` holds raw timestamped percentage samples, not estimates from
-reset timers. Retention is 30 days, capped at 180,000 samples, normally at most one
-per minute per series; reset/exhaustion changes can be retained sooner. The charts
-break lines at resets, decreases or gaps longer than an hour. Reset state persists
-in `recovery-state.json`. Codex recovery requires explicit `ordinaryUsageAllowed`
-from the backend; null, a passed deadline or a percentage alone is insufficient.
+Token history is separate from quota recovery. `account/usage/read` supplies Codex
+account daily token buckets; unsupported/error responses leave the last cache marked
+unavailable. `claude-tokens.json` and `codex-tokens.json` hold at most 30 daily totals.
+The legacy `usage-history.json` is left untouched and is no longer read or written.
+`recovery-state.json` still tracks exhaustion; Codex requires explicit
+`ordinaryUsageAllowed`, never a percentage or elapsed deadline alone.
 
+`ClaudeTokenIndexer` imports `~/.claude/projects/**/*.jsonl`, including subagents,
+using the system SQLite library (no added package/service). Its database stores
+SHA-256 message IDs/file paths, offsets, dates and token counts only. Replayed/forked
+assistant records use the maximum total per message ID; a streaming update replaces
+the previous value rather than adding it. Total = input + output + cache creation +
+cache read. Nested cache-creation breakdowns are not added again.
+
+The worker runs off the main actor at background priority, discovers file metadata
+once per refresh, and reads up to 2 MiB / 50 ms per pass, in 64 KiB chunks. Each pass
+has an autorelease pool; the SQLite page cache is limited to 1 MiB. One chunk may
+overrun the time target. Between passes it sleeps cooperatively for 0.5 s (2 s in
+Low Power Mode). Automatic refresh is every 15 minutes, with a 60 s manual floor
+and single-flight tasks. Unchanged logs produce zero content reads. A line over
+4 MiB is skipped with an incomplete-total warning. Malformed usage records are
+also flagged. Only complete newlines advance the durable cursor; database transactions
+keep message counts and offsets consistent across interrupted imports. Inode changes,
+truncation and same-size rewrites trigger a deduplicated reread. Append-only growth
+is assumed for an existing inode; an in-place rewrite that also grows is not detected.
+
+Retained dates are today and the preceding 29 calendar days. Claude uses UTC;
+Codex date-only buckets are kept as returned because the API omits timezone metadata.
+The chart contains at most 60 points. Empty successful buckets mean zero recorded
+usage; unavailable sources show a dash, with old caches explicitly labelled.
+First imports are labelled partial. Token history is not a billing report.
 Claude currency is displayed only with a currency code and `decimal_places`.
 Codex amounts are credits. Reset credits are informational; POM never redeems them.
-Missing fields remain unavailable. History aggregates readings seen on this Mac;
-it is not a per-account billing report.
+Missing fields remain unavailable. Claude coverage is local Claude Code sessions;
+Codex coverage is the signed-in account as returned by the service.
 
 ## Build and verify
 
@@ -87,5 +111,18 @@ registration errors, never to override a user's notification refusal.
 
 Quit POM, turn off Launch at login, restore the optional bridge with
 `bash scripts/uninstall-bridge.sh`, then remove `/Applications/POM.app`.
-History can be cleared in the app. If desired, remove only POM's support directory
+If desired, remove only POM's support directory
 and preferences after quitting; do not remove Claude/Codex authentication files.
+
+## Token-import resource check
+
+```bash
+swift build -c release --product pom-tests
+POM_TOKEN_BENCHMARK=1 /usr/bin/time -l .build/release/pom-tests
+```
+
+This explicit opt-in skips unit tests and reads real local Claude sessions into
+`.build/token-benchmark/index.sqlite`. It prints only byte counts, duration, day count
+and skipped-line count. It runs batches without the app's quiet intervals to measure
+parsing cost. A repeat measures warm-cache discovery; remove only that benchmark
+folder to repeat a cold import. Run ordinary `swift run pom-tests` separately.

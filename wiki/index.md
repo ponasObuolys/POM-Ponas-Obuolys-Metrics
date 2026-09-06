@@ -19,6 +19,8 @@ sources:
 
 ## Synthesis
 
+- [[wiki/synthesis/pom-2-2-1]] – Bendra tokenų istorija ir išteklių matavimai.
+
 - [[wiki/synthesis/pom-2-2]] – Naujos funkcijos, patikros ir notarizacijos kliūtis.
 
 - [[wiki/synthesis/pom-2-1-2]] – Paskelbtas leidimas, patikros ir jų ribos.

@@ -30,6 +30,14 @@ public struct CodexClient: Sendable {
 
     /// Blokuojanti operacija: paleidžia procesą ir laukia atsakymo. Kviesti reikia iš fono.
     public func fetch(executable: URL, now: Date = Date()) throws -> CodexSnapshot {
+        try CodexParser.parse(data: request(executable: executable, method: "account/rateLimits/read"), capturedAt: now)
+    }
+
+    public func fetchUsage(executable: URL, now: Date = Date()) throws -> TokenUsageSnapshot {
+        try TokenUsageSnapshot.parseCodex(request(executable: executable, method: "account/usage/read"), now: now)
+    }
+
+    private func request(executable: URL, method: String) throws -> Data {
         let process = Process()
         process.executableURL = executable
         process.arguments = ["app-server"]
@@ -69,7 +77,7 @@ public struct CodexClient: Sendable {
 
         // Įvestis lieka atvira, kol gaunamas atsakymas: pamatęs jos pabaigą Codex
         // pokalbį užbaigia ir nespėja nieko atsakyti.
-        try? input.fileHandleForWriting.write(contentsOf: Data(Self.requestLines.utf8))
+        try input.fileHandleForWriting.write(contentsOf: Data(Self.requestLines(method: method).utf8))
 
         let reader = output.fileHandleForReading
         var buffer = Data()
@@ -85,7 +93,7 @@ public struct CodexClient: Sendable {
                 let line = buffer[buffer.startIndex..<index]
                 buffer.removeSubrange(buffer.startIndex...index)
                 guard isAnswer(line) else { continue }
-                return try CodexParser.parse(data: Data(line), capturedAt: now)
+                return Data(line)
             }
         }
 
@@ -101,12 +109,12 @@ public struct CodexClient: Sendable {
 
     /// Trys eilutės iš karto: pasisveikinimas, patvirtinimas ir pats klausimas.
     /// Codex atsako paeiliui, tad laukti tarp jų nereikia.
-    private static var requestLines: String {
+    private static func requestLines(method: String) -> String {
         let client = #"{"name":"POM","title":"POM","version":"\#(version)"}"#
         return [
             #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":\#(client)}}"#,
             #"{"jsonrpc":"2.0","method":"initialized","params":{}}"#,
-            #"{"jsonrpc":"2.0","id":\#(requestID),"method":"account/rateLimits/read"}"#,
+            #"{"jsonrpc":"2.0","id":\#(requestID),"method":"\#(method)","params":{}}"#,
         ].joined(separator: "\n") + "\n"
     }
 

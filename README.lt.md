@@ -6,7 +6,7 @@ bei papildomus kreditus.
 
 [English](README.md) · [Atsisiųsti](https://github.com/ponasObuolys/POM-Ponas-Obuolys-Metrics/releases) · [Diegimo pagalba](docs/INSTALL.txt)
 
-> **Kuriama 2.2 versija.** Toliau aprašytos funkcijos jau įgyvendintos kode.
+> **Kuriama 2.2.1 versija.** Toliau aprašytos funkcijos jau įgyvendintos kode.
 > Viešai paskelbta versija tebėra 2.1.2. Patikimam 2.2 diegimo paketui dar reikia
 > „Developer ID“ sertifikato ir Apple notarizacijos. Kūrimo paketai nenotarizuoti.
 
@@ -19,13 +19,17 @@ bei papildomus kreditus.
 - **Papildomas naudojimas:** Claude mėnesio naudojimas bei sumos, kai pateikiama valiuta ir jos tikslumas; Codex kreditų likutis, mėnesio kreditų limitas ir galimi limito atkūrimai. Kreditai automatiškai neperkami ir nenaudojami.
 - **Keli indikatoriai meniu juostoje:** galima atskirai pasirinkti Claude, Fable ir Codex. Rodoma sunaudota dalis arba likutis.
 - **Pranešimai:** pasirenkamos perspėjimų ribos ir pranešimas, kai nauji duomenys patvirtina išnaudoto limito atsistatymą.
-- **7 ir 30 dienų istorija:** interaktyvūs grafikai pagal šiame kompiuteryje surinktus duomenis.
+- **7 ir 30 dienų tokenų istorija:** dvi dienos kreivės — Claude ir Codex — bei visų modelių sumos. Claude Code naudojimas skaitomas iš šio Mac, Codex — iš paskyros.
 - **Lietuvių ir anglų kalbos:** automatinis parinkimas pagal kompiuterio pagrindinę kalbą ir perjungimas nustatymuose. Kitoms sistemos kalboms parenkama anglų.
 - **Naujinimai programoje:** Sparkle tikrina pasirašytą naujinimų sąrašą ir leidžia įdiegti naują versiją. Viešam leidimui būtinas „Developer ID“ parašas ir notarizacija.
 
 ![POM naudojimo istorija](docs/images/history-lt.png)
 
-*Vaizduose naudojami pavyzdiniai duomenys. Istorija pradedama kaupti gaunant naujas reikšmes; ankstesnių dienų atkurti iš paslaugų atsakymų negalima. Tarpai reiškia laiką be duomenų arba naują limito laikotarpį. Rodomi naudojimo procentai, ne tokenų skaičius ar prognozė.*
+*Vaizduose naudojami pavyzdiniai duomenys. Tokenų sumos nenulinamos atsistačius limitui. Claude suma apima įvestį, išvestį, podėlio skaitymą ir rašymą; pasikartojantys sesijų ir subagentų įrašai skaičiuojami vieną kartą. Claude naudojimas naršyklėje ir kituose įrenginiuose neįtrauktas. Codex pateikia paskyros tokenų sumas. Claude dienos skaičiuojamos pagal UTC; Codex dienas pateikia paslauga, nenurodydama laiko juostos. Šiandienos duomenys dar pildomi. Tai nėra išlaidų suma ar prognozė.*
+
+Istorija atnaujinama kas 15 minučių. Pirmas Claude importas vyksta mažomis porcijomis
+fone, vėliau skaitomi tik papildyti failai. Nepakeistų failų turinys neskaitomas.
+Papildomas CLI procesas nuolat nelaikomas paleistas.
 
 ## Diegimas
 
@@ -54,10 +58,14 @@ POM prašo vietinių CLI naudojimo duomenų ir nesiunčia pokalbio žinutės mod
 Prisijungimu ir jo atnaujinimu pasirūpina pačios CLI. Atskiro API rakto nereikia.
 Pasirenkamas atsarginis Claude serverio šaltinis iš pradžių išjungtas.
 
-Paskutinės reikšmės ir 30 dienų istorija saugoma `~/Library/Application Support/POM`.
-Istorijoje yra laikas, procentai ir limitų atsistatymo datos. Pokalbiai, užklausų
-tekstas ir prieigos raktai į ją nerašomi. Istorija niekur nesiunčiama; ją gali
-išvalyti istorijos lange. POM neturi analitikos. Trūkstami skaičiai nelaikomi nuliais.
+Paskutiniai limitai ir 30 dienų tokenų metaduomenys saugomi `~/Library/Application Support/POM`.
+Claude sesijos skaitomos vietoje, iš jų paimami tik skaitikliai. Indekse yra maišos
+funkcija paslėpti įrašų bei failų identifikatoriai, skaitymo pozicijos, datos ir sumos.
+Pokalbių tekstas ir prieigos raktai nesaugomi. Codex istorija gaunama per prisijungtą
+CLI ir išsaugoma šiame Mac. POM nesiunčia istorijos ir neturi analitikos.
+Norint pašalinti podėlį, reikia uždaryti POM ir iš šio aplanko pašalinti tik
+`claude-token-index.sqlite`, `claude-tokens.json` bei `codex-tokens.json`.
+Kitą kartą paleidus programą, duomenys bus surinkti iš naujo.
 
 ## Kūrimas
 

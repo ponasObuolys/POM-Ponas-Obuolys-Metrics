@@ -26,3 +26,10 @@ be vietinio kūrimo katalogo; vietinio ir GitHub DMG įrodymai yra atskiri.
 Įgyvendintos vartotojo pasirinktos funkcijos ir kalbos, atnaujinta dokumentacija.
 Patikrinti testai, universalus vietinis paketas, istorijos įrašymas ir Sparkle parašai.
 Viešas leidimas laukia Developer ID/notarizacijos. Šaltinis: [[wiki/synthesis/pom-2-2]].
+
+## 2026-09-06 · POM 2.2.1
+
+Procentų istorija pakeista bendromis Claude ir Codex tokenų sumomis.
+Pridėtas inkrementinis vietinių įrašų indeksas, išmatuota atmintis ir I/O,
+sumos palygintos su nepriklausomu perskaičiavimu.
+Šaltinis: [[wiki/synthesis/pom-2-2-1]].

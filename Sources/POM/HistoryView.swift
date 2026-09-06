@@ -7,22 +7,23 @@ struct HistoryView: View {
     @ObservedObject var settings: Settings
     @State private var days = 7
     @State private var selected: Date?
-    @State private var visible = Set(HistorySeries.allCases)
-    @State private var confirmClear = false
 
-    private var start: Date { Date().addingTimeInterval(-Double(days) * 86400) }
-    private var points: [HistoryPoint] { service.history.points.filter { $0.capturedAt >= start && visible.contains($0.series) } }
-    private var available: [HistorySeries] {
-        HistorySeries.allCases.filter { series in service.history.points.contains { $0.series == series } }
+    init(service: HistoryService, settings: Settings, days: Int = 7) {
+        self.service = service; self.settings = settings
+        _days = State(initialValue: days == 30 ? 30 : 7)
     }
 
+    private var keys: [String] { UsageDay.keys(days: days) }
+    private var selectedKey: String? { selected.map(UsageDay.key).flatMap { keys.contains($0) ? $0 : nil } }
+    private let green = Color(red: 0.15, green: 0.68, blue: 0.47)
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
+        VStack(alignment: .leading, spacing: 18) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(settings.text("Naudojimo istorija", "Usage history"))
                         .font(.system(size: 25, weight: .semibold, design: .rounded))
-                    Text(settings.text("Tavo limitų ritmas. Šiame kompiuteryje.", "Your usage over time. On this Mac."))
+                    Text(settings.text("Dienos tokenai · visi modeliai", "Daily tokens · all models"))
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -30,147 +31,151 @@ struct HistoryView: View {
                     Text(settings.text("7 dienos", "7 days")).tag(7)
                     Text(settings.text("30 dienų", "30 days")).tag(30)
                 }
-                .pickerStyle(.segmented)
-                .frame(width: 190)
+                .pickerStyle(.segmented).frame(width: 240)
             }
 
-            if service.history.points.isEmpty {
+            HStack(spacing: 16) {
+                totalCard(name: "Claude", source: .claude, snapshot: service.claude, color: .orange,
+                          coverage: settings.text("Claude Code · šiame Mac", "Claude Code · this Mac"),
+                          busy: service.importing, unavailable: service.claudeUnavailable)
+                totalCard(name: "Codex", source: .codex, snapshot: service.codex, color: green,
+                          coverage: settings.text("Codex paskyra", "Codex account"),
+                          busy: service.fetchingCodex, unavailable: service.codexUnavailable)
+            }
+
+            if service.claude == nil && service.codex == nil {
                 ContentUnavailableView {
-                    Label(settings.text("Istorija prasideda dabar", "Your history starts here"), systemImage: "chart.xyaxis.line")
+                    Label(settings.text("Laukiama naudojimo duomenų", "Waiting for usage data"), systemImage: "chart.xyaxis.line")
                 } description: {
-                    Text(settings.text("POM išsaugos naujai gautus limitų duomenis. Ankstesnių dienų duomenys paslaugų atsakymuose nepateikiami.",
-                                       "POM will save new usage readings. The providers do not include past days in their responses."))
-                }
-                .frame(maxWidth: .infinity, minHeight: 330)
+                    Text(settings.text("Claude tokenai skaitomi iš vietinių Claude Code įrašų, Codex — iš prisijungtos paskyros.",
+                                       "Claude tokens come from local Claude Code sessions; Codex tokens come from your signed-in account."))
+                }.frame(maxWidth: .infinity, minHeight: 270)
             } else {
-                HStack(spacing: 8) {
-                    ForEach(available, id: \.self) { series in
-                        Button {
-                            if visible.contains(series) { if visible.intersection(available).count > 1 { visible.remove(series) } }
-                            else { visible.insert(series) }
-                        } label: {
-                            HStack(spacing: 6) {
-                                Circle().fill(series.color).frame(width: 7, height: 7)
-                                Text(series.title(settings.language)).font(.system(size: 11, weight: .medium))
-                            }
-                            .padding(.horizontal, 10).padding(.vertical, 7)
-                            .background(series.color.opacity(visible.contains(series) ? 0.13 : 0.03), in: Capsule())
-                            .opacity(visible.contains(series) ? 1 : 0.5)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityAddTraits(visible.contains(series) ? .isSelected : [])
-                    }
-                }
-
-                chart
-                    .frame(height: 275)
-                    .padding(18)
+                chart.frame(height: 220).padding(18)
                     .background(Color.primary.opacity(0.025), in: RoundedRectangle(cornerRadius: 16))
-
-                HStack(alignment: .top, spacing: 16) {
-                    ForEach(available.filter { visible.contains($0) }, id: \.self) { series in
-                        let seriesPoints = points.filter { $0.series == series }
-                        let value = selected.flatMap { date in
-                            seriesPoints.min { abs($0.capturedAt.timeIntervalSince(date)) < abs($1.capturedAt.timeIntervalSince(date)) }
-                        } ?? seriesPoints.last
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(series.title(settings.language)).font(.system(size: 11)).foregroundStyle(.secondary)
-                            Text(value.map { "\(Int($0.percentage.rounded()))%" } ?? "—")
-                                .font(.system(size: 28, weight: .semibold, design: .rounded)).foregroundStyle(series.color)
-                            Text(value.map { settings.language.absolute($0.capturedAt) } ?? settings.text("Duomenų nėra", "No readings"))
-                                .font(.system(size: 10)).foregroundStyle(.secondary)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
             }
+
+            HStack {
+                Text(selectedKey.map(dayTitle) ?? settings.text("Pasirink dieną grafike", "Select a day in the chart"))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                if let key = selectedKey {
+                    Text("Claude  \(dayTokens(service.claude, key))").foregroundStyle(.orange)
+                    Text("Codex  \(dayTokens(service.codex, key))").foregroundStyle(green).padding(.leading, 16)
+                }
+            }.font(.system(size: 12, weight: .medium)).monospacedDigit()
             Spacer(minLength: 0)
             HStack(alignment: .bottom) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(settings.text("Sunaudoto limito procentai · saugoma 30 dienų", "Percentage of limit used · stored for 30 days"))
-                    Text(settings.text("Tarpai žymi laiką be duomenų arba naują limito laikotarpį.", "Gaps mark missing readings or a new limit period."))
-                    if service.saveFailed {
-                        Text(settings.text("Nepavyko išsaugoti istorijos. Patikrink laisvą vietą diske.", "Could not save history. Check available disk space.")).foregroundStyle(.orange)
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(settings.text("Įvestis, išvestis ir podėlio tokenai. Šiandienos duomenys dar pildomi.",
+                                       "Input, output and cached tokens. Today's totals are still growing."))
+                    Text(settings.text("Claude dienos — UTC; Codex dienos — kaip pateikia paslauga.",
+                                       "Claude days use UTC; Codex dates are supplied by the service."))
+                    Text(settings.text("Atnaujinama kas 15 min. Claude naršyklės ir kitų įrenginių naudojimas neįtrauktas.",
+                                       "Updates every 15 min. Claude web and other devices are not included."))
+                    if service.skippedLines > 0 {
+                        Text(settings.text("Dalies Claude įrašų nepavyko perskaityti — suma gali būti mažesnė.",
+                                           "Some Claude records could not be read; the total may be incomplete.")).foregroundStyle(.orange)
                     }
-                }
-                .font(.system(size: 11)).foregroundStyle(.secondary)
-                Spacer()
-                Button(settings.text("Išvalyti istoriją…", "Clear history…")) { confirmClear = true }
-                    .font(.system(size: 11))
-                    .disabled(service.history.points.isEmpty)
+                }.font(.system(size: 11)).foregroundStyle(.secondary)
+                Spacer(minLength: 12)
+                Button(settings.text("Atnaujinti", "Refresh")) { service.refresh() }
+                    .disabled(service.importing || service.fetchingCodex)
             }
         }
-        .padding(28)
+        .padding(24)
         .frame(minWidth: 780, idealWidth: 840, minHeight: 660)
         .environment(\.locale, settings.locale)
+        .environment(\.timeZone, TimeZone(secondsFromGMT: 0)!)
         .onChange(of: days) { _, _ in selected = nil }
-        .alert(settings.text("Išvalyti šiame kompiuteryje saugomą istoriją?", "Clear the usage history stored on this Mac?"), isPresented: $confirmClear) {
-            Button(settings.text("Atšaukti", "Cancel"), role: .cancel) {}
-            Button(settings.text("Išvalyti", "Clear"), role: .destructive) { service.clear(); selected = nil }
+    }
+
+    private func totalCard(name: String, source: MenuBarSource, snapshot: TokenUsageSnapshot?, color: Color,
+                           coverage: String, busy: Bool, unavailable: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                ProviderMarkView(source: source).frame(width: 17, height: 17)
+                Text(name).font(.system(size: 14, weight: .semibold))
+                Spacer()
+                if busy { ProgressView().controlSize(.small) }
+            }
+            Text(snapshot.map { number($0.total(days: days)) } ?? "—")
+                .font(.system(size: 30, weight: .semibold, design: .rounded)).foregroundStyle(color)
+                .monospacedDigit().lineLimit(1).minimumScaleFactor(0.65)
+            Text(settings.text("tokenų per \(days) d.", "tokens over \(days) days"))
+                .font(.system(size: 11)).foregroundStyle(.secondary)
+            Text(coverage).font(.system(size: 12, weight: .medium))
+            Text(status(snapshot: snapshot, source: source, busy: busy, unavailable: unavailable))
+                .font(.system(size: 10)).foregroundStyle(unavailable ? .orange : .secondary)
+                .lineLimit(2).frame(minHeight: 14, alignment: .top)
         }
+        .padding(16).frame(maxWidth: .infinity, alignment: .leading)
+        .background(color.opacity(0.07), in: RoundedRectangle(cornerRadius: 14))
+    }
+
+    private func status(snapshot: TokenUsageSnapshot?, source: MenuBarSource, busy: Bool, unavailable: Bool) -> String {
+        if busy { return source == .claude
+            ? settings.text("Importuojama mažomis porcijomis… Suma dar negalutinė.", "Importing in small batches… Totals are partial.")
+            : settings.text("Gaunami paskyros duomenys…", "Fetching account usage…") }
+        if unavailable { return snapshot == nil
+            ? settings.text("Duomenys neprieinami", "Data unavailable")
+            : settings.text("Atnaujinti nepavyko · rodomi išsaugoti duomenys", "Update unavailable · showing saved data") }
+        return snapshot.map { settings.text("Atnaujinta ", "Updated ") + settings.language.absolute($0.updatedAt) }
+            ?? settings.text("Duomenų dar nėra", "No data yet")
     }
 
     private struct Sample: Identifiable {
-        let point: HistoryPoint
-        let segment: String
-        var id: String { point.id }
+        let provider: String; let day: String; let tokens: Int64
+        var id: String { provider + day }
+        var date: Date { UsageDay.date(day)! }
     }
-
-    private var chartSamples: [Sample] {
-        available.filter { visible.contains($0) }.flatMap { series in
-            service.history.segments(for: series, since: start).enumerated().flatMap { index, segment in
-                // Keep first, last and peak per hour: bounded charts without losing spikes.
-                let buckets = Dictionary(grouping: segment) { Int($0.capturedAt.timeIntervalSince1970 / 3600) }
-                return buckets.keys.sorted().flatMap { hour -> [Sample] in
-                    let values = buckets[hour]!
-                    let candidates = [values.first!, values.max { $0.percentage < $1.percentage }!, values.last!]
-                    var ids = Set<String>()
-                    return candidates.sorted { $0.capturedAt < $1.capturedAt }.filter { ids.insert($0.id).inserted }
-                        .map { Sample(point: $0, segment: "\(series.rawValue)-\(index)") }
-                }
-            }
+    private var samples: [Sample] {
+        [("Claude", service.claude), ("Codex", service.codex)].flatMap { name, snapshot -> [Sample] in
+            guard let snapshot else { return [] }
+            let values = Dictionary(snapshot.days.map { ($0.day, $0.tokens) }, uniquingKeysWith: max)
+            return keys.filter { $0 <= UsageDay.key(snapshot.updatedAt) }
+                .map { Sample(provider: name, day: $0, tokens: values[$0] ?? 0) }
         }
     }
-
     private var chart: some View {
         Chart {
-            ForEach(chartSamples) { sample in
-                LineMark(x: .value("Date", sample.point.capturedAt), y: .value("%", sample.point.percentage),
-                         series: .value("Period", sample.segment))
-                    .foregroundStyle(sample.point.series.color)
-                    .lineStyle(StrokeStyle(lineWidth: 2))
-                    .interpolationMethod(.linear)
-                    .accessibilityLabel(sample.point.series.title(settings.language))
-                    .accessibilityValue("\(Int(sample.point.percentage))%")
-                PointMark(x: .value("Date", sample.point.capturedAt), y: .value("%", sample.point.percentage))
-                    .foregroundStyle(sample.point.series.color).symbolSize(9)
+            ForEach(samples) { sample in
+                LineMark(x: .value("Day", sample.date), y: .value("Tokens", sample.tokens))
+                    .foregroundStyle(by: .value("Provider", sample.provider))
+                    .lineStyle(StrokeStyle(lineWidth: 2)).interpolationMethod(.linear)
+                PointMark(x: .value("Day", sample.date), y: .value("Tokens", sample.tokens))
+                    .foregroundStyle(by: .value("Provider", sample.provider)).symbolSize(18)
+                    .accessibilityLabel("\(sample.provider), \(dayTitle(sample.day))")
+                    .accessibilityValue(number(sample.tokens))
             }
-            if let selected {
-                RuleMark(x: .value("Selected", selected))
+            if let key = selectedKey {
+                RuleMark(x: .value("Selected", UsageDay.date(key)!))
                     .foregroundStyle(Color.secondary.opacity(0.4)).lineStyle(StrokeStyle(dash: [4, 4]))
             }
         }
-        .chartXScale(domain: start...Date())
-        .chartYScale(domain: 0...max(100, points.map(\.percentage).max() ?? 100))
-        .chartYAxis { AxisMarks(position: .leading, values: [0, 25, 50, 75, 100]) { value in
+        .chartForegroundStyleScale(["Claude": Color.orange, "Codex": green])
+        .chartLegend(.hidden)
+        .chartXScale(domain: UsageDay.date(keys.first!)!...UsageDay.date(keys.last!)!, range: .plotDimension(padding: 12))
+        .chartYScale(domain: 0...max(1, samples.map(\.tokens).max() ?? 1))
+        .chartYAxis { AxisMarks(position: .leading) { value in
             AxisGridLine().foregroundStyle(Color.secondary.opacity(0.1))
-            AxisValueLabel { if let number = value.as(Int.self) { Text("\(number)%") } }
+            AxisValueLabel { if let value = value.as(Int64.self) { Text(value, format: .number.notation(.compactName)) } }
         } }
-        .chartXAxis { AxisMarks(values: .stride(by: .day, count: days == 7 ? 1 : 5)) { _ in
-            AxisValueLabel(format: .dateTime.month(.abbreviated).day())
+        .chartXAxis { AxisMarks(values: keys.enumerated().filter { days == 7 || $0.offset % 5 == 0 || $0.offset == days - 1 }.compactMap { UsageDay.date($0.element) }) { value in
+            AxisValueLabel(anchor: .top, collisionResolution: .disabled) {
+                if let date = value.as(Date.self) { Text(dayTitle(UsageDay.key(date))).fixedSize() }
+            }
         } }
         .chartXSelection(value: $selected)
-        .chartLegend(.hidden)
     }
-}
-
-extension HistorySeries {
-    var color: Color {
-        switch self {
-        case .claudeSession: return .orange
-        case .claudeWeekly: return Color(red: 0.7, green: 0.4, blue: 0.95)
-        case .fableWeekly: return .blue
-        case .codexWeekly: return Color(red: 0.15, green: 0.68, blue: 0.47)
-        }
+    private func number(_ value: Int64) -> String { value.formatted(.number.locale(settings.locale)) }
+    private func dayTokens(_ snapshot: TokenUsageSnapshot?, _ key: String) -> String {
+        guard let snapshot, key <= UsageDay.key(snapshot.updatedAt) else { return "—" }
+        return number(snapshot.days.first { $0.day == key }?.tokens ?? 0)
+    }
+    private func dayTitle(_ key: String) -> String {
+        var style = Date.FormatStyle().month(.abbreviated).day().locale(settings.locale)
+        style.timeZone = TimeZone(secondsFromGMT: 0)!
+        return UsageDay.date(key)!.formatted(style)
     }
 }

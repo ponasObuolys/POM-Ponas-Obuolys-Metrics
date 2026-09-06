@@ -61,6 +61,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         model.start()
         codex.start()
+        history.start()
         updateLabel()
 
         updater.start()
@@ -75,6 +76,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         model.stop()
         codex.stop()
+        history.stop()
     }
 
     // MARK: - Meniu juostos elementas
@@ -143,8 +145,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let controller = NSHostingController(rootView: HistoryView(service: history, settings: settings))
             let window = NSWindow(contentViewController: controller)
             window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
-            window.setContentSize(NSSize(width: 840, height: 660))
-            window.contentMinSize = NSSize(width: 780, height: 660)
+            window.setContentSize(NSSize(width: 840, height: 700))
+            window.contentMinSize = NSSize(width: 780, height: 700)
             window.isReleasedWhenClosed = false
             window.center()
             historyWindow = window

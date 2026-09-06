@@ -31,8 +31,10 @@ paleidimą prisijungus prie kompiuterio. Atidarytame lange matomos abi paslaugos
 Nuo 2.2 papildomi kreditai rodomi atskirai nuo prenumeratos procentų. Claude sumoms reikia
 valiutos ir decimal_places; Codex sumos yra kreditai. Atkūrimo kreditai tik rodomi, nenaudojami.
 
-Istorija saugo tik gautus procentus, ne laikmačio apskaičiuotus nulius. Duomenys lieka
-kompiuteryje iki 30 dienų. Atsistatymo pranešimams reikia naujo atsakymo; Codex papildomai
+Nuo 2.2.1 istorijoje rodomi dienos tokenai: Claude Code šiame Mac ir Codex paskyra,
+visi modeliai kartu, 7/30 dienų sumos. Limitų atsistatymas jų nenulina. Skaitymas
+inkrementinis, fone. Senas procentų istorijos failas nebenaudojamas.
+Atsistatymo pranešimams reikia naujo atsakymo; Codex papildomai
 reikia aiškaus ordinaryUsageAllowed patvirtinimo.
 
 Susiję: [[wiki/synthesis/pom-2-2]], [[wiki/entities/pom]], [[wiki/synthesis/pom-2-1-2]].

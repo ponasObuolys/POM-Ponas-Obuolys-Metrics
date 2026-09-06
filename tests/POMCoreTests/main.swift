@@ -26,6 +26,29 @@ private func checkClose(_ name: String, _ actual: Double, _ expected: Double, to
 
 private func date(_ epoch: TimeInterval) -> Date { Date(timeIntervalSince1970: epoch) }
 
+// Explicit opt-in benchmark. Prints only aggregate resource statistics, never log content.
+if ProcessInfo.processInfo.environment["POM_TOKEN_BENCHMARK"] == "1" {
+    do {
+        let dir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent(".build/token-benchmark")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let index = try ClaudeTokenIndexer(root: FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/projects"), database: dir.appendingPathComponent("index.sqlite"))
+        let start = ProcessInfo.processInfo.systemUptime
+        try index.begin()
+        var read = 0, batches = 0
+        while true {
+            let batch = try index.scanBatch()
+            read += batch.bytesRead; batches += 1
+            if batch.complete { print("BENCH import bytes=\(read) batches=\(batches) seconds=\(ProcessInfo.processInfo.systemUptime-start) days=\(batch.snapshot.days.count) skipped=\(batch.skippedLines)"); break }
+        }
+        let idleStart = ProcessInfo.processInfo.systemUptime
+        try index.begin()
+        let idle = try index.scanBatch()
+        print("BENCH unchanged bytes=\(idle.bytesRead) seconds=\(ProcessInfo.processInfo.systemUptime-idleStart) complete=\(idle.complete)")
+    } catch { print("token benchmark failed: \(error)"); exit(1) }
+    exit(0)
+}
+
+
 // MARK: - Skaitymas: tilto formatas
 
 do {
@@ -724,6 +747,9 @@ if ProcessInfo.processInfo.environment["POM_CODEX_TEST"] == "1" {
                 "codex: tikras atsakymas turi lango trukmę", snapshot.windowMinutes > 0,
                 "gauta \(snapshot.windowMinutes)")
             check("codex: tikras atsakymas turi planą", snapshot.planType != nil)
+            let tokenUsage = try CodexClient().fetchUsage(executable: executable)
+            check("codex: real account token buckets bounded", tokenUsage.days.count <= 30)
+            check("codex: real token counts valid", tokenUsage.days.allSatisfy { $0.tokens >= 0 && UsageDay.date($0.day) != nil })
             print(
                 "· Codex atsakė: \(Int(snapshot.window.usedPercentage)) % iš "
                     + LTFormat.windowTitle(minutes: snapshot.windowMinutes) + " lango; planas: "
@@ -921,6 +947,105 @@ do {
     checkEqual("language: English period", AppLanguage.en.windowTitle(minutes: 300), "5-hour")
     checkEqual("language: Lithuanian period", AppLanguage.lt.windowTitle(minutes: 10080), "7 dienų")
 } catch { failures.append("2.2 usage tests: \(error)") }
+
+// MARK: - Daily tokens and incremental local indexing
+
+do {
+    let now = UsageDay.date("2026-09-06")!.addingTimeInterval(12 * 3600)
+    checkEqual("tokens: seven calendar dates including today", UsageDay.keys(days: 7, now: now).first, "2026-08-31")
+    checkEqual("tokens: thirty calendar dates including today", UsageDay.keys(days: 30, now: now).first, "2026-08-08")
+    check("tokens: impossible date rejected", UsageDay.date("2026-02-30") == nil)
+    let response = Data(#"{"result":{"dailyUsageBuckets":[{"startDate":"2026-09-06","tokens":42},{"startDate":"2026-08-08","tokens":25},{"startDate":"2026-08-07","tokens":90},{"startDate":"2026-09-07","tokens":80}]}}"#.utf8)
+    let parsed = try TokenUsageSnapshot.parseCodex(response, now: now)
+    checkEqual("tokens: Codex only retained days", parsed.days.count, 2)
+    checkEqual("tokens: period total independent of limits", parsed.total(days: 7, now: now), 42)
+    checkEqual("tokens: thirty day sum", parsed.total(days: 30, now: now), 67)
+    for invalid in [#"{"error":{"code":-32601}}"#, #"{"result":{}}"#,
+                    #"{"result":{"dailyUsageBuckets":[{"startDate":"2026-09-06","tokens":-1}]}}"#,
+                    #"{"result":{"dailyUsageBuckets":[{"startDate":"2026-09-06","tokens":2},{"startDate":"2026-09-06","tokens":3}]}}"#] {
+        check("tokens: invalid account data stays unavailable", (try? TokenUsageSnapshot.parseCodex(Data(invalid.utf8), now: now)) == nil)
+    }
+    let empty = try TokenUsageSnapshot.parseCodex(Data(#"{"result":{"dailyUsageBuckets":[]}}"#.utf8), now: now)
+    checkEqual("tokens: successful empty account means zero", empty.total(days: 7, now: now), 0)
+
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent("pom-tokens-\(UUID().uuidString)")
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let root = dir.appendingPathComponent("projects")
+    try FileManager.default.createDirectory(at: root.appendingPathComponent("child/subagents"), withIntermediateDirectories: true)
+    let file = root.appendingPathComponent("session.jsonl")
+    let database = dir.appendingPathComponent("index.sqlite")
+    func record(_ id: String, output: Int, time: String = "2026-09-06T10:00:00.000Z") -> Data {
+        Data("{\"type\":\"assistant\",\"timestamp\":\"\(time)\",\"message\":{\"id\":\"\(id)\",\"content\":\"PRIVATE-PROMPT-NEVER-SAVE\",\"usage\":{\"input_tokens\":10,\"output_tokens\":\(output),\"cache_creation_input_tokens\":20,\"cache_read_input_tokens\":30,\"cache_creation\":{\"ephemeral_5m_input_tokens\":20}}}}\n".utf8)
+    }
+    func append(_ data: Data, to url: URL) throws {
+        let h = try FileHandle(forWritingTo: url); defer { try? h.close() }
+        try h.seekToEnd(); try h.write(contentsOf: data)
+    }
+    func finish(_ index: ClaudeTokenIndexer, budget: Int = 1024) throws -> ClaudeTokenIndexer.Batch {
+        var batch = try index.scanBatch(now: now, maxBytes: budget, maxSeconds: 1)
+        var passes = 0
+        while !batch.complete {
+            check("tokens: byte budget bounded", batch.bytesRead <= budget)
+            batch = try index.scanBatch(now: now, maxBytes: budget, maxSeconds: 1)
+            passes += 1
+            if passes > 10000 { throw ClaudeTokenIndexer.IndexError.database }
+        }
+        return batch
+    }
+    try (record("one", output: 1) + record("one", output: 7) + record("two", output: 3)).write(to: file)
+    try record("one", output: 7).write(to: root.appendingPathComponent("copy.jsonl"))
+    try record("subagent", output: 5).write(to: root.appendingPathComponent("child/subagents/agent.jsonl"))
+    var index: ClaudeTokenIndexer? = try ClaudeTokenIndexer(root: root, database: database)
+    try index!.begin(now: now)
+    let first = try finish(index!)
+    checkEqual("tokens: duplicates, streaming maxima, caches and subagents", first.snapshot.total(days: 7, now: now), 195)
+    try index!.begin(now: now)
+    let idle = try index!.scanBatch(now: now)
+    checkEqual("tokens: unchanged logs cause zero content reads", idle.bytesRead, 0)
+    check("tokens: idle discovery complete", idle.complete)
+    index = nil
+    index = try ClaudeTokenIndexer(root: root, database: database)
+    try index!.begin(now: now)
+    checkEqual("tokens: restart reuses offsets", try index!.scanBatch(now: now).bytesRead, 0)
+    let partial = record("partial", output: 4)
+    try append(partial.prefix(80), to: file)
+    try index!.begin(now: now)
+    checkEqual("tokens: incomplete JSON is deferred", try finish(index!).snapshot.total(days: 7, now: now), 195)
+    try append(partial.dropFirst(80), to: file)
+    try index!.begin(now: now)
+    checkEqual("tokens: completed append counted once", try finish(index!).snapshot.total(days: 7, now: now), 259)
+    try record("replacement", output: 6).write(to: file, options: .atomic)
+    try index!.begin(now: now)
+    checkEqual("tokens: replacement preserves previously observed usage", try finish(index!).snapshot.total(days: 7, now: now), 325)
+    try record("truncate", output: 2).write(to: file)
+    try index!.begin(now: now)
+    checkEqual("tokens: truncated file reindexed", try finish(index!).snapshot.total(days: 7, now: now), 387)
+    try append(record("utc", output: 1, time: "2026-09-07T01:00:00+03:00"), to: file)
+    try append(record("expired", output: 99, time: "2026-08-07T23:00:00Z"), to: file)
+    try index!.begin(now: now)
+    checkEqual("tokens: UTC bucket and retention", try finish(index!).snapshot.total(days: 7, now: now), 448)
+    let long = root.appendingPathComponent("long.jsonl")
+    try (Data(repeating: 65, count: ClaudeTokenIndexer.maximumLineBytes + 1) + Data([10]) + record("after-long", output: 9)).write(to: long)
+    try index!.begin(now: now)
+    let oversized = try finish(index!, budget: 1024 * 1024)
+    checkEqual("tokens: oversized line warned", oversized.skippedLines, 1)
+    checkEqual("tokens: valid data after large line retained", oversized.snapshot.total(days: 7, now: now), 517)
+    // Restart while reading a record, before the newline has been committed.
+    try append(record("restart-mid-line", output: 11), to: file)
+    try index!.begin(now: now)
+    _ = try index!.scanBatch(now: now, maxBytes: 40, maxSeconds: 1)
+    index = nil; index = try ClaudeTokenIndexer(root: root, database: database)
+    try index!.begin(now: now)
+    checkEqual("tokens: interrupted import resumes without loss or duplication", try finish(index!).snapshot.total(days: 7, now: now), 588)
+    let bytes = try Data(contentsOf: database)
+    check("tokens: cache contains no prompts", bytes.range(of: Data("PRIVATE-PROMPT-NEVER-SAVE".utf8)) == nil)
+    check("tokens: cache contains no raw identifiers", bytes.range(of: Data("restart-mid-line".utf8)) == nil)
+    try index!.begin(now: now.addingTimeInterval(31 * 86400))
+    checkEqual("tokens: expired counts removed", try index!.scanBatch(now: now.addingTimeInterval(31 * 86400)).snapshot.days.count, 0)
+    let missing = try ClaudeTokenIndexer(root: dir.appendingPathComponent("absent"), database: dir.appendingPathComponent("missing.sqlite"))
+    try missing.begin(now: now)
+    check("tokens: missing sessions unavailable, not invented zero", try !missing.scanBatch(now: now).available)
+} catch { failures.append("token history: \(error)") }
 
 // MARK: - Rezultatas
 
