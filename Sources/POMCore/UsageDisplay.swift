@@ -33,7 +33,7 @@ public enum Freshness: Equatable, Sendable {
 public struct DisplayWindow: Equatable, Sendable {
     public let usedPercentage: Double
     public let resetsAt: Date?
-    /// Reikšmė gauta ne iš duomenų, o iš to, kad atsistatymo laikas jau praėjo.
+    /// Atsistatymo laikas praėjo; naujo lango duomenų dar negavome.
     public let didReset: Bool
 
     public var remainingPercentage: Double { max(0, 100 - usedPercentage) }
@@ -51,10 +51,11 @@ public enum UsageDisplay {
     public static let liveWindow: TimeInterval = 90
     public static let recentWindow: TimeInterval = 30 * 60
 
-    /// Jei atsistatymo laikas praėjo, langas jau nunulintas, nors naujų duomenų ir negavome.
+    /// Laikmatis nepatvirtina limito atsistatymo. Išsaugome paskutinį matavimą,
+    /// o sąsaja pasibaigusiam langui rodo nežinomą reikšmę, kol gaus naują atsakymą.
     public static func resolve(_ window: UsageWindow, now: Date) -> DisplayWindow {
         if let resetsAt = window.resetsAt, now >= resetsAt {
-            return DisplayWindow(usedPercentage: 0, resetsAt: nil, didReset: true)
+            return DisplayWindow(usedPercentage: window.usedPercentage, resetsAt: resetsAt, didReset: true)
         }
         return DisplayWindow(
             usedPercentage: window.usedPercentage, resetsAt: window.resetsAt, didReset: false)

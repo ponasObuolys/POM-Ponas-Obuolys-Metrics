@@ -91,6 +91,24 @@ final class HistoryService: ObservableObject {
         claudeTask?.cancel(); codexTask?.cancel()
     }
 
+    /// Uses summaries already in memory; no transcript scans or CLI/network calls.
+    func exportReportData(now: Date = Date()) throws -> Data {
+        var entries: [UsageHistoryReport.Entry] = []
+        if let claude {
+            entries.append(.init(source: .claudeCodeLocal,
+                                 collectionStatus: importing || skippedLines > 0 ? .partial
+                                     : (claudeUnavailable ? .refreshFailed : .complete),
+                                 snapshot: claude))
+        }
+        if let codex {
+            entries.append(.init(source: .codexAccount,
+                                 collectionStatus: fetchingCodex ? .partial
+                                     : (codexUnavailable ? .refreshFailed : .complete),
+                                 snapshot: codex))
+        }
+        return try UsageHistoryReport(generatedAt: now, entries: entries).encoded()
+    }
+
     func refresh() {
         guard lastAttempt.map({ Date().timeIntervalSince($0) >= 60 }) ?? true else { return }
         lastAttempt = Date()

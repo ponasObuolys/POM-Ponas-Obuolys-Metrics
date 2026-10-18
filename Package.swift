@@ -4,10 +4,14 @@ import PackageDescription
 let package = Package(
     name: "POM",
     platforms: [.macOS(.v14)],
-    dependencies: [.package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.9.6")],
+    dependencies: [
+        .package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.9.6"),
+        .package(path: "Packages/POMUsageKit")
+    ],
     targets: [
         .target(
             name: "POMCore",
+            dependencies: [.product(name: "POMUsageKit", package: "POMUsageKit")],
             path: "Sources/POMCore"
         ),
         .executableTarget(

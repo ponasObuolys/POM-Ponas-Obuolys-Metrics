@@ -6,6 +6,10 @@ reset times and extra credits into one small window.
 
 [🇱🇹 Lietuviškai](README.lt.md) · [Downloads](https://github.com/ponasObuolys/POM-Ponas-Obuolys-Metrics/releases) · [Installation help](docs/INSTALL.txt)
 
+The [2.3.0 development version](docs/releases/2.3.0.md) adds [Cursor and Grok Bot metrics](docs/CURSOR-GROK-METRICS.md):
+usage limits, reset times and on-demand spend. Cursor requires explicit opt-in;
+Grok Bot reads its local summary. These integrations are not in the public 2.2.3 release.
+
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-black)
 ![Apple silicon and Intel](https://img.shields.io/badge/Mac-Apple_silicon_%26_Intel-blue)
 ![MIT license](https://img.shields.io/badge/license-MIT-green)
@@ -58,6 +62,22 @@ release uses an informational link for manual download. EdDSA update signatures
 verify file integrity and do not replace Apple notarization.
 
 Codex recovery notifications require the backend to explicitly report that ordinary usage is allowed. If your CLI omits this field, POM does not claim that access has recovered from percentages alone.
+
+### When Claude readings stop updating
+
+An elapsed timer does not confirm a new usage window. POM shows “–” and
+“waiting for new data” until Claude returns current limits. You do not need to confirm a reset.
+
+Click **Sign in to Claude** beside the notice, or choose
+**Settings → Sign in to Claude…**. POM opens Terminal and starts `claude auth login`.
+Finish in the browser or follow the Terminal instructions. When the command succeeds,
+POM refreshes limits automatically. If Terminal cannot open, the notice provides
+the command for manual sign-in. POM reads only the exit status, never the login code or token.
+
+ChatGPT/Codex has a separate **Sign in to ChatGPT…** action in Settings and a button
+in the Codex section when signed out or readings cannot be refreshed. It starts
+`codex login` in Terminal and refreshes Codex limits after successful browser sign-in.
+Signing in to one provider does not sign you in to the other.
 
 ## Privacy and data
 

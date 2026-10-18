@@ -25,6 +25,11 @@ missing configuration; do not interpret it as successful notarization.
 
 ## One-time Apple setup
 
+For the enrollment checklist and the separate Mac App Store/iPhone/iPad proposal, see
+[APPLE-DISTRIBUTION.md](APPLE-DISTRIBUTION.md). Run `bash scripts/apple-preflight.sh`
+to check local prerequisites without changing credentials. Add `--verify-notary`
+only after configuring a Keychain profile; it performs a read-only Apple access check.
+
 An active Apple Developer Program membership is required. In Apple's developer
 account/Xcode, create or download a **Developer ID Application** certificate and
 install it **with its private key** in the Mac's Keychain. Then verify:

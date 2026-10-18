@@ -11,7 +11,7 @@ for source in Sources/POM/*.swift; do
 done
 swiftc -parse-as-library -I "$pom_build_dir/Modules" -F "$pom_build_dir" -framework Sparkle \
   -Xlinker -rpath -Xlinker "$pom_build_dir" \
-  "$pom_build_dir"/POMCore.build/*.o "${sources[@]}" \
+  "$pom_build_dir"/POMCore.build/*.o "$pom_build_dir"/POMUsageKit.build/*.o "${sources[@]}" \
   "$pom_build_dir/POM.build/DerivedSources/resource_bundle_accessor.swift" \
   tests/POMViewTests/main.swift -o "$pom_build_dir/pom-view-tests"
 "$pom_build_dir/pom-view-tests" "$root/.build/ui-checks"
