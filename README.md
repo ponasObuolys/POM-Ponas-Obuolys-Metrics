@@ -6,7 +6,7 @@ reset times and extra credits into one small window.
 
 [🇱🇹 Lietuviškai](README.lt.md) · [Downloads](https://github.com/ponasObuolys/POM-Ponas-Obuolys-Metrics/releases) · [Installation help](docs/INSTALL.txt)
 
-The development branch adds [Cursor and Grok Bot metrics](docs/CURSOR-GROK-METRICS.md):
+The [2.3.0 development version](docs/releases/2.3.0.md) adds [Cursor and Grok Bot metrics](docs/CURSOR-GROK-METRICS.md):
 usage limits, reset times and on-demand spend. Cursor requires explicit opt-in;
 Grok Bot reads its local summary. These integrations are not in the public 2.2.3 release.
 

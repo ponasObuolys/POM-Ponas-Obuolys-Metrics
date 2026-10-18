@@ -1,7 +1,7 @@
 ---
 type: synthesis
 created: 2026-09-06
-updated: 2026-09-18
+updated: 2026-10-18
 sources:
   - 43f082be7f37b145c7705700c2793e2ac419bf09
 ---
@@ -110,3 +110,14 @@ SwiftUI vaizdai patikrinti abiejose temose; universalus paketas įdiegtas,
 patikrintos įdiegtų išteklių kopijos ir programos parašas. POM procesas veikia.
 Ankstesnis paketas išsaugotas `dist/backups/POM-replaced-icons-20261018.app`.
 Šaltinis: [[wiki/synthesis/cursor-grok-metrics]].
+
+## 2026-10-18 · Versija 2.3.0
+
+Vartotojo nurodymu `VERSION` pakelta iš 2.2.3 į 2.3.0. Pridėtos kūrimo
+versijos pastabos `docs/releases/2.3.0.md` ir atnaujintos nuorodos abiejuose
+README. Viešo 2.2.3 leidimo nuorodos paliktos kaip paskelbto leidimo istorija.
+Vien numerio pakeitimas nesukuria GitHub leidimo ar notarizacijos.
+Universalus 2.3.0 paketas įdiegtas į `/Applications/POM.app`, patikrinti abu
+versijos laukai ir programos parašas. Paleistos programos atnaujinimo lange
+gyvai perskaityta „POM 2.3.0“. Ankstesnė programa ir nustatymai išsaugoti
+`dist/backups/`.

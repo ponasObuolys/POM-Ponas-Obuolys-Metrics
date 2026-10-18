@@ -1,6 +1,6 @@
 # Cursor ir Grok Bot metrikos
 
-Vietinės kūrimo versijos papildymas. Viešas POM 2.2.3 leidimas šių integracijų neturi.
+POM 2.3.0 kūrimo versijos funkcijos. Viešas POM 2.2.3 leidimas šių integracijų neturi.
 
 ## Cursor
 

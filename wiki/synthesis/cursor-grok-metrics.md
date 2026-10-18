@@ -48,7 +48,8 @@ su patikrinto vietinio paketo failu.
 Ankstesnė programa ir nustatymai išsaugoti `dist/backups/`. Vietiniam pakavimui
 naudotas macOS 26.5 SDK ir SwiftPM native build system; esama POM piktograma
 pakartotinai panaudota, nes šioje aplinkoje iconutil atmetė naują iconset.
-Šaltinio versija liko 2.2.3; tai vietinis papildymas, viešas leidimas nepaskelbtas.
+Pirmo vietinio papildymo šaltinio versija buvo 2.2.3. Vėliau 2026-10-18
+vartotojo nurodymu ji pakelta į 2.3.0; viešas leidimas nepaskelbtas.
 
 2026-10-18 raidiniai Cursor/Grok Bot pakaitalai pakeisti tikrais ženklais:
 oficialaus Cursor ženklų paketo 2D kubu ir oficialios Grok Bot programos

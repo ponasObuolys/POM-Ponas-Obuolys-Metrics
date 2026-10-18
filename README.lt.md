@@ -6,7 +6,7 @@ bei papildomus kreditus.
 
 [English](README.md) · [Atsisiųsti](https://github.com/ponasObuolys/POM-Ponas-Obuolys-Metrics/releases) · [Diegimo pagalba](docs/INSTALL.txt)
 
-Kūrimo šakoje pridėtos [Cursor ir Grok Bot metrikos](docs/CURSOR-GROK-METRICS.md):
+[2.3.0 kūrimo versijoje](docs/releases/2.3.0.md) pridėtos [Cursor ir Grok Bot metrikos](docs/CURSOR-GROK-METRICS.md):
 limitai, atsistatymo laikas ir papildomos išlaidos. Cursor integracija įjungiama
 atskirai; Grok Bot skaitoma vietinė suvestinė. Viešame 2.2.3 leidime jų dar nėra.
 
