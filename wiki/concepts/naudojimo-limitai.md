@@ -1,7 +1,7 @@
 ---
 type: concept
 created: 2026-09-06
-updated: 2026-09-06
+updated: 2026-10-18
 sources:
   - Sources/POM/UsageViewModel.swift
   - Sources/POMCore/UsageSnapshot.swift
@@ -36,5 +36,23 @@ visi modeliai kartu, 7/30 dienų sumos. Limitų atsistatymas jų nenulina. Skait
 inkrementinis, fone. Senas procentų istorijos failas nebenaudojamas.
 Atsistatymo pranešimams reikia naujo atsakymo; Codex papildomai
 reikia aiškaus ordinaryUsageAllowed patvirtinimo.
+
+Vietinėje 2026-09-09 pataisoje pasibaigęs laikmatis nebepaverčia paskutinės
+reikšmės nuliu. Lange ir meniu juostoje rodoma „–“, laukiant naujų duomenų.
+„Prisijungti prie Claude“ mygtukas ir toks pat nustatymų meniu veiksmas
+atidaro Terminal su `claude auth login`. Sėkmingas komandos rezultatas
+inicijuoja naują limitų užklausą be ankstesnės klaidos laukimo intervalo.
+Prisijungimo duomenis tvarko Claude CLI; POM skaito tik komandos baigimo kodą.
+ChatGPT/Codex turi tokį pat atskirą prisijungimo veiksmą su `codex login`.
+Abi eigos naudoja bendrą `CLISignInSession` ir `TerminalSignIn`; po sėkmės
+atnaujinami tik atitinkamos paslaugos limitai.
+
+Vietinė 2026-10-18 sąsaja naudoja Bento tinklelį be slinkimo. Paslaugų
+jungikliai valdo ir korteles, ir meniu juostą; Fable turi atskirą kortelę
+su Claude modelių šeimos ženklu. Didžiausia automatiškai tampa daugiausiai
+limito procentų išnaudojusi paslauga. Vieną kortelę galima prisegti segtuku;
+atsegus arba išjungus prisegtą paslaugą grįžtama prie automatinio prioriteto.
+Pasibaigę rodmenys šiame palyginime nedalyvauja. Daugiau:
+[[wiki/synthesis/bento-dashboard]].
 
 Susiję: [[wiki/synthesis/pom-2-2]], [[wiki/entities/pom]], [[wiki/synthesis/pom-2-1-2]].

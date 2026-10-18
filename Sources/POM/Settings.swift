@@ -32,6 +32,8 @@ enum MenuBarSource: String, CaseIterable, Identifiable {
     case claude
     case fable
     case codex
+    case cursor
+    case grokBot
 
     var id: String { rawValue }
 
@@ -40,6 +42,8 @@ enum MenuBarSource: String, CaseIterable, Identifiable {
         case .claude: return "Claude"
         case .fable: return "Fable"
         case .codex: return "Codex"
+        case .cursor: return "Cursor"
+        case .grokBot: return "Grok Bot"
         }
     }
 }
@@ -73,11 +77,20 @@ final class Settings: ObservableObject {
     }
 
     @Published private(set) var menuBarSources: [MenuBarSource]
+    @Published private(set) var pinnedSource: MenuBarSource? {
+        didSet {
+            if let pinnedSource { defaults.set(pinnedSource.rawValue, forKey: "pinnedSource") }
+            else { defaults.removeObject(forKey: "pinnedSource") }
+        }
+    }
     @Published var language: AppLanguage {
         didSet { defaults.set(language.rawValue, forKey: "language") }
     }
     @Published var recoveryNotifications: Bool {
         didSet { defaults.set(recoveryNotifications, forKey: "recoveryNotifications") }
+    }
+    @Published var cursorMetricsEnabled: Bool {
+        didSet { defaults.set(cursorMetricsEnabled, forKey: "cursorMetricsEnabled") }
     }
     func supportReminderForLaunch(version: String, now: Date = Date()) -> SupportReminderPolicy.Occasion? {
         let stored = defaults.data(forKey: "supportReminderState")
@@ -98,6 +111,12 @@ final class Settings: ObservableObject {
         guard !selected.isEmpty else { return }
         menuBarSources = MenuBarSource.allCases.filter { selected.contains($0) }
         defaults.set(menuBarSources.map(\.rawValue), forKey: "menuBarSources")
+        if pinnedSource == source && !enabled { pinnedSource = nil }
+    }
+
+    func togglePin(_ source: MenuBarSource) {
+        guard menuBarSources.contains(source) else { return }
+        pinnedSource = pinnedSource == source ? nil : source
     }
 
 
@@ -145,8 +164,11 @@ final class Settings: ObservableObject {
         let oldSource = MenuBarSource(rawValue: defaults.string(forKey: Key.menuBarSource) ?? "") ?? .claude
         let sources = defaults.stringArray(forKey: "menuBarSources")?.compactMap(MenuBarSource.init(rawValue:)) ?? [oldSource]
         menuBarSources = sources.isEmpty ? [.claude] : MenuBarSource.allCases.filter { sources.contains($0) }
+        let storedPin = defaults.string(forKey: "pinnedSource").flatMap(MenuBarSource.init(rawValue:))
+        pinnedSource = storedPin.flatMap { sources.contains($0) ? $0 : nil }
         language = AppLanguage(rawValue: defaults.string(forKey: "language") ?? "") ?? .system
         recoveryNotifications = defaults.bool(forKey: "recoveryNotifications")
+        cursorMetricsEnabled = defaults.bool(forKey: "cursorMetricsEnabled")
         launchAtLogin = loginItem.isEnabled
     }
 }

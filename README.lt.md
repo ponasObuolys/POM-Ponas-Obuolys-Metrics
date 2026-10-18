@@ -6,6 +6,10 @@ bei papildomus kreditus.
 
 [English](README.md) · [Atsisiųsti](https://github.com/ponasObuolys/POM-Ponas-Obuolys-Metrics/releases) · [Diegimo pagalba](docs/INSTALL.txt)
 
+Kūrimo šakoje pridėtos [Cursor ir Grok Bot metrikos](docs/CURSOR-GROK-METRICS.md):
+limitai, atsistatymo laikas ir papildomos išlaidos. Cursor integracija įjungiama
+atskirai; Grok Bot skaitoma vietinė suvestinė. Viešame 2.2.3 leidime jų dar nėra.
+
 > **[POM 2.2.3 paskelbta](https://github.com/ponasObuolys/POM-Ponas-Obuolys-Metrics/releases/tag/v2.2.3)** Apple silicon ir Intel kompiuteriams.
 > Šis leidimas **Apple nenotarizuotas**, programos parašas — ad-hoc. macOS gali
 > blokuoti pirmą paleidimą. „Developer ID“ pasirašymas ir notarizacija dar neatlikti.
@@ -53,6 +57,23 @@ leidimui pateikiama rankinio atsisiuntimo nuoroda. EdDSA parašai patvirtina fai
 vientisumą, tačiau neatstoja Apple notarizacijos.
 
 Codex atsistatymo pranešimui reikia aiškaus serverio patvirtinimo, kad įprastas naudojimas vėl leidžiamas. Jei tavo CLI šio lauko nepateikia, POM nesiunčia tokio pranešimo vien pagal procentus.
+
+### Kai Claude duomenys neatsinaujina
+
+Pasibaigęs laikmatis savaime nepatvirtina naujo limito. Kol Claude nepateikia
+naujų duomenų, POM rodo „–“ ir „laukiama naujų duomenų“; atsistatymo patvirtinti nereikia.
+
+Paspausk **Prisijungti prie Claude** prie pranešimo arba pasirink
+**Nustatymai → Prisijungti prie Claude…**. POM atidarys Terminal ir paleis
+`claude auth login`. Užbaik prisijungimą naršyklėje arba vykdyk Terminal nurodymus.
+Komandai sėkmingai pasibaigus, POM automatiškai atnaujins limitus. Jei Terminal
+nepavyksta atidaryti, pranešime pateikiama komanda rankiniam prisijungimui.
+POM neskaito prisijungimo kodo ar rakto – gauna tik komandos baigimo būseną.
+
+ChatGPT/Codex turi atskirą **Nustatymai → Prisijungti prie ChatGPT…** veiksmą.
+Mygtukas rodomas ir Codex skiltyje, kai paskyra neprijungta arba nepavyksta
+atnaujinti limitų. Jis Terminal lange paleidžia `codex login` ir po sėkmingo
+prisijungimo naršyklėje atnaujina Codex limitus. Prie kiekvienos paslaugos prisijungiama atskirai.
 
 ## Duomenys ir privatumas
 

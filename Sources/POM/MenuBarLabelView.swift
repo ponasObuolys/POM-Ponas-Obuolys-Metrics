@@ -40,7 +40,7 @@ struct MenuBarLabelView: View {
         HStack(spacing: 5) {
             ZStack(alignment: .leading) {
                 Capsule().fill(Theme.track)
-                if hasData && fillFraction(window) > 0 {
+                if hasData && !window.didReset && fillFraction(window) > 0 {
                     Capsule()
                         .fill(Theme.gradient(for: window.level))
                         .frame(width: max(2, barWidth * fillFraction(window)))
@@ -51,13 +51,13 @@ struct MenuBarLabelView: View {
             Text(numberText(window))
                 .font(.system(size: 9, weight: .semibold, design: .rounded))
                 .monospacedDigit()
-                .foregroundStyle(hasData ? Theme.color(for: window.level) : Color.secondary)
+                .foregroundStyle(hasData && !window.didReset ? Theme.color(for: window.level) : Color.secondary)
                 .frame(width: numberWidth, alignment: .leading)
         }
     }
 
     private func numberText(_ window: DisplayWindow) -> String {
-        guard hasData else { return "–" }
+        guard hasData && !window.didReset else { return "–" }
         let value = showRemaining ? window.remainingPercentage : window.usedPercentage
         return "\(Int(value.rounded()))%"
     }

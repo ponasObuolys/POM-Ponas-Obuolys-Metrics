@@ -1,5 +1,6 @@
 import Foundation
 import POMCore
+import SQLite3
 
 // Paprasta testų paleidyklė. XCTest su komandinės eilutės įrankiais neprieinamas,
 // tad patikros rašomos tiesiogiai. Radus klaidą, procesas grąžina ne nulį.
@@ -139,8 +140,16 @@ checkClose("prieš atsistatymą rodoma reikšmė", beforeReset.usedPercentage, 7
 checkEqual("prieš atsistatymą žyma neuždėta", beforeReset.didReset, false)
 
 let afterReset = UsageDisplay.resolve(window, now: date(2001))
-checkClose("po atsistatymo rodomas nulis", afterReset.usedPercentage, 0.0)
+checkClose("pasibaigęs laikmatis neišgalvoja nulio", afterReset.usedPercentage, 73.0)
+checkEqual("pasibaigęs laikmatis išsaugo paskutinį atsistatymo laiką", afterReset.resetsAt, date(2000))
 checkEqual("po atsistatymo žyma uždėta", afterReset.didReset, true)
+
+let atReset = UsageDisplay.resolve(window, now: date(2000))
+checkClose("ties atsistatymo riba paskutinė reikšmė išsaugoma", atReset.usedPercentage, 73.0)
+checkEqual("ties atsistatymo riba laukiama naujų duomenų", atReset.didReset, true)
+let confirmedReset = UsageDisplay.resolve(UsageWindow(usedPercentage: 2, resetsAt: date(3000)), now: date(2001))
+checkEqual("naujas langas panaikina laukimo būseną", confirmedReset.didReset, false)
+checkClose("naujas langas rodo gautą naudojimą", confirmedReset.usedPercentage, 2)
 
 let noReset = UsageDisplay.resolve(UsageWindow(usedPercentage: 50, resetsAt: nil), now: date(9999))
 checkClose("be atsistatymo laiko reikšmė nekeičiama", noReset.usedPercentage, 50.0)
@@ -881,6 +890,59 @@ do {
     }
 } catch { failures.append("Claude proceso patikra: \(error)") }
 
+// MARK: - Claude prisijungimas per Terminal
+
+do {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("pom-login-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let executable = root.appendingPathComponent("claude ' $(touch injected)")
+    let fixture = "#!/bin/bash\n[ \"$#\" -eq 2 ] && [ \"$1\" = auth ] && [ \"$2\" = login ] || exit 91\nexit 0\n"
+    try fixture.write(to: executable, atomically: true, encoding: .utf8)
+    try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: executable.path)
+    let session = try CLISignInSession.prepare(executable: executable, parent: root)
+    checkEqual("prisijungimas laukia tikro komandos rezultato", session.completionStatus(), nil)
+    let permissions = try FileManager.default.attributesOfItem(atPath: session.directory.path)[.posixPermissions] as? Int
+    checkEqual("prisijungimo katalogas privatus", permissions, 0o700)
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/bin/bash")
+    process.arguments = [session.commandURL.path]
+    process.currentDirectoryURL = root
+    process.standardOutput = FileHandle.nullDevice
+    process.standardError = FileHandle.nullDevice
+    try process.run(); process.waitUntilExit()
+    checkEqual("prisijungimo komanda sėkminga su sudėtingu keliu", process.terminationStatus, 0)
+    checkEqual("sėkmingas prisijungimas patvirtinamas", session.completionStatus(), 0)
+    check("prisijungimo kelias nevykdomas kaip shell kodas", !FileManager.default.fileExists(atPath: root.appendingPathComponent("injected").path))
+    session.cleanUp()
+    check("prisijungimo laikini failai pašalinami", !FileManager.default.fileExists(atPath: session.directory.path))
+
+    try "#!/bin/bash\nexit 7\n".write(to: executable, atomically: true, encoding: .utf8)
+    let failed = try CLISignInSession.prepare(executable: executable, parent: root)
+    let failure = Process()
+    failure.executableURL = URL(fileURLWithPath: "/bin/bash")
+    failure.arguments = [failed.commandURL.path]
+    failure.standardOutput = FileHandle.nullDevice
+    failure.standardError = FileHandle.nullDevice
+    try failure.run(); failure.waitUntilExit()
+    checkEqual("nepavykęs prisijungimas nelaikomas sėkme", failed.completionStatus(), 7)
+    checkEqual("nepavykęs prisijungimas išsaugo exit code", failure.terminationStatus, 7)
+    try "invalid".write(to: failed.resultURL, atomically: true, encoding: .utf8)
+    checkEqual("blogas prisijungimo rezultatas nelaikomas sėkme", failed.completionStatus(), nil)
+
+    try "#!/bin/bash\n[ \"$#\" -eq 1 ] && [ \"$1\" = login ] || exit 91\nexit 0\n".write(to: executable, atomically: true, encoding: .utf8)
+    let codexSession = try CLISignInSession.prepare(executable: executable, provider: .codex, parent: root)
+    checkEqual("ChatGPT prisijungimas turi atskirą Terminal pavadinimą", codexSession.commandURL.lastPathComponent, "Sign in to ChatGPT.command")
+    let codexLogin = Process()
+    codexLogin.executableURL = URL(fileURLWithPath: "/bin/bash")
+    codexLogin.arguments = [codexSession.commandURL.path]
+    codexLogin.standardOutput = FileHandle.nullDevice
+    codexLogin.standardError = FileHandle.nullDevice
+    try codexLogin.run(); codexLogin.waitUntilExit()
+    checkEqual("Codex prisijungimas naudoja login be Claude auth argumento", codexLogin.terminationStatus, 0)
+    checkEqual("ChatGPT prisijungimo sėkmė patvirtinama", codexSession.completionStatus(), 0)
+} catch { failures.append("Claude prisijungimo eiga: \(error)") }
+
 // MARK: - Extra usage, history and recovery
 
 do {
@@ -1141,6 +1203,121 @@ do {
     let partialReport = try UsageHistoryReport(generatedAt: now, entries: [partial])
     checkEqual("report: partial collection remains partial after transfer", try UsageHistoryReport.decode(partialReport.encoded()).entries[0].collectionStatus, .partial)
 } catch { failures.append("portable history reports: \(error)") }
+
+// MARK: - Cursor and Grok Bot usage contracts (synthetic data only)
+
+do {
+    let captured = date(1_790_000_000)
+    func parse(_ json: String) throws -> ProviderUsageSnapshot {
+        try CursorUsageParser.parse(Data(json.utf8),
+            planData: Data(#"{"planInfo":{"includedUsagePeriod":"INCLUDED_USAGE_PERIOD_MONTHLY"}}"#.utf8), capturedAt: captured)
+    }
+    let split = try parse("""
+        {"billingCycleEnd":"1791000000000","planUsage":{"autoPercentUsed":0,"apiPercentUsed":73.5},
+         "spendLimitUsage":{"individualUsed":125,"individualLimit":"5000"}}
+        """)
+    checkEqual("Cursor: independent buckets", split.meters.map(\.kind), [.auto, .api])
+    checkClose("Cursor: explicit zero is valid", split.meters[0].window.usedPercentage, 0)
+    checkClose("Cursor: model percentage", split.meters[1].window.usedPercentage, 73.5)
+    checkEqual("Cursor: millisecond reset", split.meters[0].window.resetsAt, date(1_791_000_000))
+    checkEqual("Cursor: original capture date", split.capturedAt, captured)
+    checkEqual("Cursor: cents kept separate", split.onDemand, .init(usedCents: 125, limitCents: 5000))
+    let legacy = try parse("""
+        {"billingCycleEnd":1791000000000,"planUsage":{"includedSpend":500,"limit":2000}}
+        """)
+    checkClose("Cursor: amount-derived included usage", legacy.meters[0].window.usedPercentage, 25)
+    checkEqual("Cursor: numeric protobuf timestamp", legacy.meters[0].window.resetsAt, date(1_791_000_000))
+    let weekly = try CursorUsageParser.parse(Data(#"{"billingCycleEnd":"1791000000000","planUsage":{"totalPercentUsed":15}}"#.utf8),
+        planData: Data(#"{"planInfo":{"planName":"Super","includedUsagePeriod":2,"includedUsageResetsAt":"1790500000000"}}"#.utf8), capturedAt: captured)
+    checkEqual("Cursor: weekly reset is not monthly billing date", weekly.meters[0].window.resetsAt, date(1_790_500_000))
+    checkEqual("Cursor: plan name from source", weekly.planName, "Super")
+    let unknownPeriod = try CursorUsageParser.parse(Data(#"{"billingCycleEnd":"1791000000000","planUsage":{"totalPercentUsed":15}}"#.utf8), capturedAt: captured)
+    checkEqual("Cursor: unknown period does not assume a billing-date reset", unknownPeriod.meters[0].window.resetsAt, nil)
+    let zero = try parse(#"{"planUsage":{"limit":2000}}"#)
+    checkClose("Cursor: omitted nonoptional protobuf spend defaults to zero", zero.meters[0].window.usedPercentage, 0)
+    let percentOnly = try parse(#"{"planUsage":{"totalPercentUsed":103}}"#)
+    checkClose("Cursor: overage retained", percentOnly.meters[0].window.usedPercentage, 103)
+    checkEqual("Cursor: missing reset remains unknown", percentOnly.meters[0].window.resetsAt, nil)
+    let spendOnly = try parse(#"{"spendLimitUsage":{"individualUsed":321}}"#)
+    check("Cursor: spend does not invent an allowance", spendOnly.meters.isEmpty)
+    checkEqual("Cursor: absent cap is not zero", spendOnly.onDemand?.limitCents, nil)
+    for json in ["{}", "{\"planUsage\":{}}", "{\"planUsage\":{\"limit\":0}}",
+                 "{\"planUsage\":{\"totalPercentUsed\":-1}}", "{\"planUsage\":{\"totalPercentUsed\":true}}",
+                 "{\"planUsage\":{\"totalPercentUsed\":1e100}}", "[]"] {
+        do { _ = try parse(json); check("Cursor: invalid/missing allowance rejected", false) }
+        catch { check("Cursor: invalid/missing allowance rejected", true) }
+    }
+    do { _ = try CursorUsageParser.parse(Data(repeating: 32, count: CursorUsageParser.maximumBytes + 1), capturedAt: captured)
+        check("Cursor: bounded response", false)
+    } catch { check("Cursor: bounded response", true) }
+    let session = CursorClient.Session(accessToken: "synthetic-session")
+    check("Cursor: description redacts credentials", !String(describing: session).contains("synthetic-session"))
+    check("Cursor: fingerprint changes with session", session.fingerprint != CursorClient.Session(accessToken: "other-synthetic-session").fingerprint)
+
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("pom-cursor-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let database = root.appendingPathComponent("state.vscdb")
+    do { _ = try CursorClient.readSession(database: database); check("Cursor: missing session rejected", false) }
+    catch { check("Cursor: missing session rejected", true) }
+    check("Cursor: read never creates a database", !FileManager.default.fileExists(atPath: database.path))
+    var db: OpaquePointer?
+    precondition(sqlite3_open(database.path, &db) == SQLITE_OK)
+    precondition(sqlite3_exec(db, "CREATE TABLE ItemTable (key TEXT PRIMARY KEY, value TEXT); INSERT INTO ItemTable VALUES ('cursorAuth/accessToken', 'synthetic-session');", nil, nil, nil) == SQLITE_OK)
+    sqlite3_close(db)
+    checkEqual("Cursor: reads selected key in read-only mode", try CursorClient.readSession(database: database).fingerprint, session.fingerprint)
+} catch { failures.append("Cursor usage: \(error)") }
+
+do {
+    let now = date(1_790_000_000)
+    var value: [String: Any] = ["kind": "present", "selectedTeamId": NSNull(), "expiresAtMs": (now.timeIntervalSince1970 + 86400) * 1000,
+        "reading": ["readAtMs": (now.timeIntervalSince1970 - 180) * 1000,
+                    "usage": ["percentUsed": 1.85, "nextResetMs": (now.timeIntervalSince1970 + 86400 * 5) * 1000,
+                              "isSandTrial": false, "hasNonZeroIncludedLimit": true, "grokPlanLabel": "Grok Bot Plan",
+                              "onDemand": ["usedCents": 50, "limitCents": 1000]]]]
+    func data(_ input: [String: Any], schema: Int = 2) throws -> Data {
+        try JSONSerialization.data(withJSONObject: ["schemaVersion": schema, "value": input])
+    }
+    let snapshot = try GrokBotCache.parse(data(value), now: now)
+    checkEqual("Grok Bot: weekly meter", snapshot.meters.map(\.kind), [.weekly])
+    checkClose("Grok Bot: percentage", snapshot.meters[0].window.usedPercentage, 1.85)
+    checkEqual("Grok Bot: cache read does not refresh capture date", snapshot.capturedAt, now.addingTimeInterval(-180))
+    checkEqual("Grok Bot: plan from source", snapshot.planName, "Grok Bot Plan")
+    checkEqual("Grok Bot: on demand cents", snapshot.onDemand, .init(usedCents: 50, limitCents: 1000))
+    for invalid in [try data(value, schema: 999), try data(["kind": "absent", "selectedTeamId": NSNull(), "expiresAtMs": (now.timeIntervalSince1970 + 1000) * 1000])] {
+        do { _ = try GrokBotCache.parse(invalid, now: now); check("Grok Bot: incompatible/absent cache rejected", false) }
+        catch { check("Grok Bot: incompatible/absent cache rejected", true) }
+    }
+    do { _ = try GrokBotCache.parse(data(value), now: now.addingTimeInterval(86401)); check("Grok Bot: expired cache rejected", false) }
+    catch { check("Grok Bot: expired cache rejected", true) }
+    var expiredReading = value["reading"] as! [String: Any]
+    var usage = expiredReading["usage"] as! [String: Any]
+    usage["nextResetMs"] = (now.timeIntervalSince1970 - 1) * 1000
+    expiredReading["usage"] = usage
+    var expiredReset = value; expiredReset["reading"] = expiredReading
+    let expired = try GrokBotCache.parse(data(expiredReset), now: now)
+    check("Grok Bot: elapsed reset awaits new data", UsageDisplay.resolve(expired.meters[0].window, now: now).didReset)
+
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("pom-grok-\(UUID().uuidString)")
+    defer { try? FileManager.default.removeItem(at: root) }
+    let cache = GrokBotCache(home: root)
+    try FileManager.default.createDirectory(at: cache.directory, withIntermediateDirectories: true)
+    func select(_ account: String) throws {
+        let metadata = try JSONSerialization.data(withJSONObject: ["schemaVersion": 1, "value": account])
+        try metadata.write(to: cache.directory.appendingPathComponent(GrokBotCache.blobName(for: "sand.client.slice.client-meta.account-slot")))
+    }
+    try select("github|fixture")
+    let blob = GrokBotCache.blobName(for: "sand.client.slice.account.github%7Cfixture.weekly-usage.cache")
+    try data(value).write(to: cache.directory.appendingPathComponent(blob))
+    checkEqual("Grok Bot: active account cache found with URI encoding", try cache.read(now: now), snapshot)
+    try select("different-account")
+    do { _ = try cache.read(now: now); check("Grok Bot: never borrows another account's quota", false) }
+    catch { check("Grok Bot: never borrows another account's quota", true) }
+    checkEqual("Grok Bot: base32 naming contract", GrokBotCache.blobName(for: "foo"), "mzxw6.blob")
+    value["reading"] = ["readAtMs": (now.timeIntervalSince1970 + 3600) * 1000, "usage": usage]
+    do { _ = try GrokBotCache.parse(data(value), now: now); check("Grok Bot: future readings rejected", false) }
+    catch { check("Grok Bot: future readings rejected", true) }
+} catch { failures.append("Grok Bot cache: \(error)") }
 
 // MARK: - Rezultatas
 

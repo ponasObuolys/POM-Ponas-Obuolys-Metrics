@@ -4,6 +4,27 @@ The marks belong to Anthropic and OpenAI respectively.
 SVG sources: Lobe Icons
 https://github.com/lobehub/lobe-icons/blob/master/packages/static-svg/icons/anthropic.svg
 https://github.com/lobehub/lobe-icons/blob/master/packages/static-svg/icons/openai.svg
+https://github.com/lobehub/lobe-icons/blob/master/packages/static-svg/icons/claude.svg
+
+claude.svg identifies the Claude Fable model family in the menu bar and source
+picker. It uses the Claude symbol rather than an invented Fable-specific logo.
+Retrieved 2026-10-18. Root width/height converted from 1em to 24 for AppKit's
+SVG loader; path data unchanged. Rendered as a macOS template image.
+
+Cursor and Grok Bot marks identify those usage providers in POM.
+The marks and associated rights belong to their respective owners.
+These two vendor assets are separate from the MIT-licensed Lobe Icons below.
+
+cursor.svg: unmodified CUBE_2D_DARK.svg from Cursor's official brand kit.
+https://cursor.com/brand
+https://ptht05hbb1ssoooe.public.blob.vercel-storage.com/assets/brand/cursor-brand-assets.zip
+Archive path: General Logos/Cube/SVG/CUBE_2D_DARK.svg
+Retrieved 2026-10-18. The monochrome asset is rendered as a macOS template image.
+
+grok-bot.png: unmodified app-icon-C7NKj2u7.png from the official Grok Bot
+macOS application, version 0.71.2, distributed at https://x.ai/bot.
+Application archive path: dist/renderer/assets/app-icon-C7NKj2u7.png
+Copied 2026-10-18. Rendered in its original colors to preserve the face details.
 
 MIT License
 

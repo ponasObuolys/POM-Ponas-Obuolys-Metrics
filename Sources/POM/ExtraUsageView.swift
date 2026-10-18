@@ -6,18 +6,24 @@ struct ExtraUsageDisclosure: View {
     var claude: ClaudeExtraUsage?
     var codex: CodexAdditionalUsage?
     var capturedAt: Date?
-    @State private var expanded = false
+    @State private var showingDetails = false
     var body: some View {
-        DisclosureGroup(isExpanded: $expanded) {
-            ExtraUsageView(settings: settings, claude: claude, codex: codex, capturedAt: capturedAt)
-                .padding(.top, 6)
-        } label: {
-            HStack {
+        Button { showingDetails.toggle() } label: {
+            HStack(spacing: 6) {
                 Label(settings.text("Papildomas naudojimas", "Extra usage"), systemImage: "creditcard")
                 Spacer(minLength: 6)
                 Text(summary).foregroundStyle(.secondary)
+                Image(systemName: "chevron.right").font(.system(size: 8, weight: .semibold))
+                    .foregroundStyle(.tertiary)
             }
             .font(.system(size: 11))
+        }
+        .buttonStyle(.plain)
+        .help(settings.text("Rodyti kreditų ir išlaidų informaciją", "Show credit and spending details"))
+        .popover(isPresented: $showingDetails) {
+            ExtraUsageView(settings: settings, claude: claude, codex: codex, capturedAt: capturedAt)
+                .frame(width: 320).padding(8)
+                .environment(\.locale, settings.locale)
         }
     }
     private var summary: String {

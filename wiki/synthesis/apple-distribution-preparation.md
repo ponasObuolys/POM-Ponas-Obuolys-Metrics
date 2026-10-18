@@ -1,8 +1,10 @@
 ---
 type: synthesis
 created: 2026-09-06
-updated: 2026-09-07
+updated: 2026-09-18
 sources:
+  - https://developer.apple.com/enroll/agree
+  - 2d8358e
   - docs/APPLE-DISTRIBUTION.md
   - docs/architecture/001-apple-platforms.md
   - Packages/POMUsageKit/Package.swift
@@ -15,10 +17,16 @@ sources:
 
 Vartotojas nori Apple Developer narystės, notarizuoto Mac leidimo ir Mac App Store / iPhone / iPad versijų.
 Organizacijos registracija „Ponas Obuolys, MB“ vardu pateikta 2026-09-07. Apple paieškoje rastas
-esamas D-U-N-S numeris priimtas, darbo el. paštas patvirtintas. Būsena: „Your enrollment is being
-processed“. Laukiama Apple teisės atstovauti įmonei patvirtinimo; sutarties ir mokėjimo žingsniai
-dar nepateikti, narystė neaktyvi. Kontaktai, patvirtinimo kodai ir paraiškos numeris Git nesaugomi.
-Galiojančių Developer ID tapatybių nėra. Vartotojas įdiegė Xcode 26.6 ir užbaigė pirmo paleidimo veiksmus;
+esamas D-U-N-S numeris priimtas, darbo el. paštas patvirtintas. Iki 2026-09-09 buvo rodoma
+„Your enrollment is being processed“. 2026-09-17 gautas Apple laiškas „Complete your Apple Developer
+Program enrollment.“; 2026-09-18 gyvai patikrintas registracijos puslapis jau rodo „Review and Accept“.
+2026-09-18 gavus konkretų vartotojo leidimą priimta Apple Developer Program License Agreement.
+Apple atvėrė „Complete Your Order“ mokėjimo formą: vienų metų narystė, bendra rodoma suma US$99.
+Forma prašo kortelės ir jos sąskaitos adreso duomenų; mokėjimas nepateiktas, aktyvi narystė
+dar nepatvirtinta. Vartotojui palikta atverta mokėjimo forma. Kontaktai, patvirtinimo kodai ir paraiškos numeris Git nesaugomi.
+Per ankstesnę techninę patikrą galiojančių Developer ID tapatybių nebuvo; 2026-09-18 jos netikrintos.
+
+Toliau aprašyta techninė parengtis ir patikrų rezultatai yra 2026-09-07 būsena, įtraukta į `2d8358e`. Vartotojas įdiegė Xcode 26.6 ir užbaigė pirmo paleidimo veiksmus;
 SDK ir iOS simuliatorius 26.5 prieinami. Agentas įdiegė XcodeGen 2.46.0.
 
 Oficiali Anthropic dokumentacija nurodo, kad Pro/Max paskyroms Claude Code naudojimo analitika
@@ -47,4 +55,4 @@ EN/LT parduotuvės tekstų bei privatumo juodraštis paruoštas `docs/app-store/
 Instrukcijos ir patikros ribos surašytos `Apps/POMCompanion/README.md`.
 
 Ši šaka paruošia atskirą kūrimo peržiūrą; ji neįdiegta į Applications kaip viešas leidimas.
-Viešas 2.2.3 leidimas lieka nenotarizuotas.
+Pagal 2026-09-07 patikrą viešas 2.2.3 leidimas nenotarizuotas; 2026-09-18 leidimas pakartotinai netikrintas.

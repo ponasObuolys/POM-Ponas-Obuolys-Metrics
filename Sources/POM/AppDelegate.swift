@@ -9,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let notifications = NotificationService()
     private var model: UsageViewModel!
     private var codex: CodexViewModel!
+    private var additional: AdditionalUsageViewModel!
     private var history: HistoryService!
     private let updater = UpdateService()
     private var historyWindow: NSWindow?
@@ -24,6 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         model = UsageViewModel(settings: settings, notifications: notifications)
         codex = CodexViewModel(settings: settings, notifications: notifications)
+        additional = AdditionalUsageViewModel(settings: settings)
 
         history = HistoryService(settings: settings, notifications: notifications)
         model.onSnapshot = { [weak self] in self?.history.record($0) }
@@ -44,10 +46,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             .store(in: &cancellables)
 
+        additional.objectWillChange
+            .sink { [weak self] _ in
+                Task { @MainActor in self?.updateLabel() }
+            }
+            .store(in: &cancellables)
+
         settings.objectWillChange
             .sink { [weak self] _ in
                 Task { @MainActor in
                     self?.updateLabel()
+                    self?.additional.refreshNow()
                     self?.historyWindow?.title = self?.settings.text("POM · Naudojimo istorija", "POM · Usage history") ?? "POM"
                     self?.supportWindow?.title = self?.settings.text("POM · Paremti kūrimą", "POM · Support development") ?? "POM"
                 }
@@ -64,6 +73,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         model.start()
         codex.start()
+        additional.start()
         history.start()
         updateLabel()
 
@@ -99,6 +109,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let values: [Int]
         let levels: [UsageLevel]
         let hasData: [Bool]
+        let awaitingUpdate: [Bool]
         let remaining: Bool
         let dark: Bool
         let scale: CGFloat
@@ -111,6 +122,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             case .claude: return MenuBarEntry(source: source, windows: [model.fiveHour, model.sevenDay], hasData: model.hasData)
             case .fable: return MenuBarEntry(source: source, windows: [model.fable ?? .empty], hasData: model.fable != nil)
             case .codex: return MenuBarEntry(source: source, windows: [codex.window], hasData: codex.hasData)
+            case .cursor, .grokBot:
+                return MenuBarEntry(source: source, windows: additional.menuWindows(for: source),
+                                    hasData: additional.snapshot(for: source)?.meters.isEmpty == false)
             }
         }
     }
@@ -121,7 +135,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let entries = entries
         let windows = entries.flatMap(\.windows)
         let key = LabelKey(sources: entries.map(\.source), values: windows.map { Int($0.usedPercentage.rounded()) },
-                           levels: windows.map(\.level), hasData: entries.map(\.hasData), remaining: settings.showRemaining,
+                           levels: windows.map(\.level), hasData: entries.map(\.hasData), awaitingUpdate: windows.map(\.didReset), remaining: settings.showRemaining,
                            dark: dark, scale: scale, language: settings.language.resolved())
         guard key != lastLabelKey else { return }
         lastLabelKey = key
@@ -136,7 +150,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         button.image = image; button.imagePosition = .imageOnly
         let tooltip = entries.map { entry in
             let values = entry.hasData ? entry.windows.map {
-                "\(Int((settings.showRemaining ? $0.remainingPercentage : $0.usedPercentage).rounded()))%"
+                $0.didReset ? settings.text("laukiama naujų duomenų", "waiting for new data")
+                    : "\(Int((settings.showRemaining ? $0.remainingPercentage : $0.usedPercentage).rounded()))%"
             }.joined(separator: " / ") : settings.text("duomenų nėra", "no data")
             return "\(entry.source.title): \(values)"
         }.joined(separator: " · ")
@@ -189,7 +204,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         popover.animates = true
 
         let controller = NSHostingController(
-            rootView: UsagePanelView(model: model, codex: codex, settings: settings, updater: updater,
+            rootView: UsagePanelView(model: model, codex: codex, settings: settings, additional: additional, updater: updater,
                                      showHistory: { [weak self] in self?.showHistory() }))
         // Be šito langelio aukštis užsifiksuotų tą akimirką, kai jis sukuriamas.
         // Codex sekcija atsiranda maždaug sekunde vėliau, gavus atsakymą, ir turinys
@@ -209,6 +224,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         model.refreshNow()
         codex.refreshNow()
+        additional.refreshNow()
         // Be aktyvavimo langelis kartais užsidaro tą pačią akimirką, nes programa
         // gyvena tik meniu juostoje ir neturi savo lango.
         NSApp.activate(ignoringOtherApps: true)

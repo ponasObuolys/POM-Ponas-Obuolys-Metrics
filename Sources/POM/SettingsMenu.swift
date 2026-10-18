@@ -7,18 +7,13 @@ struct SettingsMenu: View {
     @ObservedObject var model: UsageViewModel
     @ObservedObject var codex: CodexViewModel
     @ObservedObject var settings: Settings
+    @ObservedObject var additional: AdditionalUsageViewModel
     var updater: UpdateService? = nil
 
     var body: some View {
         Menu {
-            Menu(settings.text("Meniu juostoje rodyti", "Show in menu bar")) {
-                ForEach(MenuBarSource.allCases) { source in
-                    Toggle(source.title, isOn: Binding(
-                        get: { settings.menuBarSources.contains(source) },
-                        set: { settings.setSource(source, enabled: $0) }))
-                        .disabled(settings.menuBarSources == [source]
-                                  || (source == .codex && !codex.isPresent && !settings.menuBarSources.contains(source)))
-                }
+            Menu(settings.text("Rodomos paslaugos", "Visible services")) {
+                ProviderVisibilityOptions(codex: codex, settings: settings, additional: additional)
             }
             Toggle(settings.text("Ikonoje rodyti, kiek liko", "Show remaining usage in menu bar"), isOn: $settings.showRemaining)
             Divider()
@@ -34,6 +29,15 @@ struct SettingsMenu: View {
                 Text("English").tag(AppLanguage.en)
             }
             Toggle(settings.text("Klausti serverio, kai duomenys pasenę", "Use server fallback for stale data"), isOn: $settings.serverFallbackEnabled)
+            Toggle(settings.text("Cursor metrikos (esamu prisijungimu)", "Cursor metrics (existing sign-in)"), isOn: $settings.cursorMetricsEnabled)
+            Button(settings.text("Prisijungti prie Claude…", "Sign in to Claude…")) {
+                Task { await model.signInToClaude() }
+            }
+            .disabled(model.isSigningIn || !model.canSignInToClaude)
+            Button(settings.text("Prisijungti prie ChatGPT…", "Sign in to ChatGPT…")) {
+                Task { await codex.signInToChatGPT() }
+            }
+            .disabled(codex.isSigningIn || !codex.canSignIn)
             Toggle(settings.text("Paleisti prisijungus prie kompiuterio", "Launch at login"), isOn: $settings.launchAtLogin)
             if let updater {
                 Divider()
@@ -60,6 +64,39 @@ struct SettingsMenu: View {
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .frame(width: 26)
+    }
+
+}
+
+/// Tie patys jungikliai lango viršuje ir nustatymuose valdo korteles bei indikatorius.
+struct ProviderVisibilityOptions: View {
+    @ObservedObject var codex: CodexViewModel
+    @ObservedObject var settings: Settings
+    @ObservedObject var additional: AdditionalUsageViewModel
+
+    var body: some View {
+        ForEach(MenuBarSource.allCases) { source in
+            Toggle(isOn: Binding(
+                get: { settings.menuBarSources.contains(source) },
+                set: { settings.setSource(source, enabled: $0) })) {
+                    Label {
+                        Text(source.title)
+                    } icon: {
+                        ProviderMarkView(source: source).frame(width: 16, height: 16)
+                    }
+                }
+                .disabled(settings.menuBarSources == [source]
+                          || (!isAvailable(source) && !settings.menuBarSources.contains(source)))
+        }
+    }
+
+    private func isAvailable(_ source: MenuBarSource) -> Bool {
+        switch source {
+        case .claude, .fable: return true
+        case .codex: return codex.isPresent
+        case .cursor: return additional.cursorPresent && settings.cursorMetricsEnabled
+        case .grokBot: return additional.grokBotPresent
+        }
     }
 }
 

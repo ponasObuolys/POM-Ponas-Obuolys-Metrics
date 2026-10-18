@@ -13,6 +13,9 @@ final class UsageViewModel: ObservableObject {
     @Published private(set) var isConnecting = false
     @Published private var claudeMessage: LocalizedNote?
     var claudeNote: String? { claudeMessage?.text(settings.language) }
+    @Published private(set) var canReconnectClaude = false
+    @Published private(set) var isSigningIn = false
+    @Published private(set) var isFetchingClaude = false
     @Published private(set) var extraSnapshot: UsageSnapshot?
     var onSnapshot: ((UsageSnapshot) -> Void)?
     @Published private(set) var fableSnapshot: UsageSnapshot?
@@ -26,9 +29,10 @@ final class UsageViewModel: ObservableObject {
     private let home: URL
     private let client = OAuthUsageClient()
     private let claudeStore: SnapshotStore
-    private let claudeClient = ClaudeClient()
+    private let claudeExecutable: URL?
+    private let fetchClaude: @Sendable (URL) throws -> UsageSnapshot
+    private let openClaudeSignIn: (URL) async throws -> Void
     private var claudeSnapshot: UsageSnapshot?
-    private var isFetchingClaude = false
     private var claudeGate = ServerFetchGate(
         enabled: true, staleThreshold: 5 * 60, manualFloor: 30,
         retryInterval: 2 * 60, maxRetryInterval: 30 * 60)
@@ -46,8 +50,14 @@ final class UsageViewModel: ObservableObject {
 
     init(settings: Settings, notifications: NotificationService,
          home: URL = FileManager.default.homeDirectoryForCurrentUser,
-         supportDirectory: URL = POMPaths.supportDirectory) {
+         supportDirectory: URL = POMPaths.supportDirectory,
+         claudeExecutable: URL? = ClaudeClient.executable,
+         fetchClaude: @escaping @Sendable (URL) throws -> UsageSnapshot = { try ClaudeClient().fetch(executable: $0) },
+         openClaudeSignIn: @escaping (URL) async throws -> Void = { try await TerminalSignIn.open($0) }) {
         self.home = home
+        self.claudeExecutable = claudeExecutable
+        self.fetchClaude = fetchClaude
+        self.openClaudeSignIn = openClaudeSignIn
         self.localStore = SnapshotStore(fileURL: supportDirectory.appendingPathComponent("snapshot.json"))
         self.serverStore = SnapshotStore(fileURL: supportDirectory.appendingPathComponent("server-snapshot.json"), source: .server)
         self.claudeStore = SnapshotStore(fileURL: supportDirectory.appendingPathComponent("claude-snapshot.json"), source: .claudeCLI)
@@ -91,6 +101,43 @@ final class UsageViewModel: ObservableObject {
     }
 
     // MARK: - Rodomos reikšmės
+
+    var canSignInToClaude: Bool { claudeExecutable != nil }
+
+    var isAwaitingClaudeUpdate: Bool {
+        hasData && (fiveHour.didReset || sevenDay.didReset || fable?.didReset == true)
+    }
+
+    /// Terminal owns the interactive login; POM reads only its completion status.
+    func signInToClaude(timeout: TimeInterval = 10 * 60) async {
+        guard !isSigningIn, let executable = claudeExecutable else { return }
+        isSigningIn = true
+        defer { isSigningIn = false }
+        claudeMessage = nil
+        do {
+            switch try await TerminalSignIn.run(executable: executable, provider: .claude,
+                                               timeout: timeout, open: openClaudeSignIn) {
+            case .completed:
+                // An old request must finish before the new credentials are used.
+                while isFetchingClaude { try await Task.sleep(for: .milliseconds(100)) }
+                claudeGate.recordSuccess()
+                gate.unblock()
+                now = Date()
+                fetchFromClaude(manual: true, afterSignIn: true)
+            case .failed:
+                canReconnectClaude = true
+                claudeMessage = .init("Prisijungimas nebaigtas. Pabandyk dar kartą.", "Sign-in did not finish. Please try again.")
+            case .timedOut:
+                canReconnectClaude = true
+                claudeMessage = .init("Prisijungimo dar negavome. Užbaik jį Terminal lange ir paspausk „Atnaujinti“ arba bandyk dar kartą.",
+                                      "Sign-in is still pending. Finish in Terminal and click Refresh, or try again.")
+            }
+        } catch {
+            canReconnectClaude = true
+            claudeMessage = .init("Nepavyko atidaryti prisijungimo. Terminal programoje paleisk: claude auth login. Tada paspausk „Atnaujinti“.",
+                                  "Could not open sign-in. Run claude auth login in Terminal, then click Refresh.")
+        }
+    }
 
     var hasData: Bool { snapshot != nil }
 
@@ -207,13 +254,16 @@ final class UsageViewModel: ObservableObject {
         }
     }
 
-    private func fetchFromClaude(manual: Bool) {
+    private func fetchFromClaude(manual: Bool, afterSignIn: Bool = false) {
         guard !isFetchingClaude else { return }
-        guard let executable = ClaudeClient.executable else {
+        guard !isSigningIn || afterSignIn else { return }
+        guard let executable = claudeExecutable else {
             claudeMessage = .init("Fable limitui reikia įdiegtos Claude Code komandos.", "Install Claude Code to see the Fable limit.")
             return
         }
-        let decision = claudeGate.decide(localCapturedAt: claudeSnapshot?.capturedAt, now: now, manual: manual)
+        // A completed login must bypass both the failure backoff and manual refresh floor.
+        let decision: ServerFetchGate.Decision = afterSignIn ? .fetch
+            : claudeGate.decide(localCapturedAt: claudeSnapshot?.capturedAt, now: now, manual: manual)
         guard decision == .fetch else {
             if manual, decision == .skipManualFloor {
                 claudeMessage = .init("Claude galima atnaujinti kartą per pusę minutės.", "Claude can be refreshed once every 30 seconds.")
@@ -221,16 +271,18 @@ final class UsageViewModel: ObservableObject {
             return
         }
         isFetchingClaude = true
+        claudeMessage = .init("Atnaujinami Claude limitai…", "Refreshing Claude limits…")
         claudeGate.recordAttempt(at: now)
-        let client = claudeClient
+        let fetch = fetchClaude
         Task {
             do {
                 let fresh = try await Task.detached(priority: .utility) {
-                    try client.fetch(executable: executable)
+                    try fetch(executable)
                 }.value
                 claudeSnapshot = fresh
                 try? claudeStore.save(fresh)
                 claudeGate.recordSuccess()
+                canReconnectClaude = false
                 claudeMessage = fresh.fable == nil ? .init("Claude nepateikė atskiro Fable limito.", "Claude did not report a separate Fable limit.") : nil
                 now = Date()
                 recompute()
@@ -238,7 +290,9 @@ final class UsageViewModel: ObservableObject {
             } catch {
                 claudeGate.recordFailure()
                 if case ClaudeClient.ClientError.unavailable = error {
-                    claudeMessage = .init("Claude naudojimo duomenys nepasiekiami. Patikrink prisijungimą: claude auth login.", "Claude usage is unavailable. Check your sign-in: claude auth login.")
+                    canReconnectClaude = true
+                    claudeMessage = .init("Claude Code nepateikė limitų. Jei prisijungimas baigė galioti, prisijunk iš naujo žemiau.",
+                                          "Claude Code did not return usage limits. If your sign-in expired, reconnect below.")
                 } else {
                     let retry = now.addingTimeInterval(claudeGate.backoffInterval)
                     claudeMessage = .init("Nepavyko atnaujinti Claude limitų. Bandoma vėl \(AppLanguage.lt.absolute(retry, now: now)).",
@@ -265,6 +319,7 @@ final class UsageViewModel: ObservableObject {
     }
 
     private func alert(window: AlertTracker.Window, display: DisplayWindow, name: String) {
+        guard !display.didReset else { return }
         // Riba pasako tik tai, kad reikia pranešti. Tekste rodoma tikroji reikšmė.
         guard
             tracker.check(
