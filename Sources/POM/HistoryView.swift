@@ -9,6 +9,7 @@ struct HistoryView: View {
     @ObservedObject var settings: Settings
     @State private var days = 7
     @State private var selected: Date?
+    @State private var visibleProviders: Set<String> = ["Claude", "Codex"]
     @State private var exporting = false
     @State private var exportFailed = false
 
@@ -23,6 +24,8 @@ struct HistoryView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(settings.text("Naudojimo istorija", "Usage history"))
@@ -47,6 +50,17 @@ struct HistoryView: View {
                           busy: service.fetchingCodex, unavailable: service.codexUnavailable)
             }
 
+            HStack(spacing: 16) {
+                ForEach(["Claude", "Codex"], id: \.self) { provider in
+                    Toggle(provider, isOn: Binding(get: { visibleProviders.contains(provider) }, set: { enabled in
+                        if enabled { visibleProviders.insert(provider) }
+                        else if visibleProviders.count > 1 { visibleProviders.remove(provider) }
+                    }))
+                    .disabled(visibleProviders == [provider])
+                }
+                Spacer()
+            }.toggleStyle(.checkbox)
+
             if service.claude == nil && service.codex == nil {
                 ContentUnavailableView {
                     Label(settings.text("Laukiama naudojimo duomenų", "Waiting for usage data"), systemImage: "chart.xyaxis.line")
@@ -64,11 +78,12 @@ struct HistoryView: View {
                     .foregroundStyle(.secondary)
                 Spacer()
                 if let key = selectedKey {
-                    Text("Claude  \(dayTokens(service.claude, key))").foregroundStyle(.orange)
-                    Text("Codex  \(dayTokens(service.codex, key))").foregroundStyle(green).padding(.leading, 16)
+                    if visibleProviders.contains("Claude") { Text("Claude  \(dayTokens(service.claude, key))").foregroundStyle(.orange) }
+                    if visibleProviders.contains("Codex") { Text("Codex  \(dayTokens(service.codex, key))").foregroundStyle(green).padding(.leading, 16) }
                 }
             }.font(.system(size: 12, weight: .medium)).monospacedDigit()
-            Spacer(minLength: 0)
+                }
+            }
             HStack(alignment: .bottom) {
                 VStack(alignment: .leading, spacing: 5) {
                     Text(settings.text("Įvestis, išvestis ir podėlio tokenai. Šiandienos duomenys dar pildomi.",
@@ -83,9 +98,12 @@ struct HistoryView: View {
                     }
                 }.font(.system(size: 11)).foregroundStyle(.secondary)
                 Spacer(minLength: 12)
-                Button(settings.text("Eksportuoti…", "Export…")) { exportHistory() }
-                    .help(settings.text("Išsaugoti tik naudojimo suvestines ir jų šaltinius JSON faile.",
-                                        "Save usage summaries and their sources to a JSON file."))
+                Menu(settings.text("Eksportuoti…", "Export…")) {
+                    Button("JSON…") { exportHistory(csv: false) }
+                    Button("CSV…") { exportHistory(csv: true) }
+                }
+                    .help(settings.text("Išsaugoti pasirinkto laikotarpio abiejų paslaugų suvestines.",
+                                        "Save both providers for the selected period."))
                     .disabled(exporting || (service.claude == nil && service.codex == nil))
                 Button(settings.text("Atnaujinti", "Refresh")) { service.refresh() }
                     .disabled(service.importing || service.fetchingCodex)
@@ -104,14 +122,16 @@ struct HistoryView: View {
         }
     }
 
-    private func exportHistory() {
+    private func exportHistory(csv: Bool) {
         do {
-            let data = try service.exportReportData()
+            let now = Date()
+            let data = try csv ? service.exportCSVData(days: days, now: now) : service.exportReportData(days: days, now: now)
             let panel = NSSavePanel()
-            panel.allowedContentTypes = [.json]
-            panel.nameFieldStringValue = "POM-usage-\(UsageDay.key(Date())).json"
-            panel.message = settings.text("30 dienų suvestinės su šaltiniu ir atnaujinimo laiku. Pokalbių ir prisijungimo duomenų nėra.",
-                                          "30-day summaries with their source and update time. No conversations or credentials.")
+            panel.allowedContentTypes = [csv ? .commaSeparatedText : .json]
+            let interval = UsageDay.keys(days: days, now: now)
+            panel.nameFieldStringValue = "POM-usage-\(interval.first!)-\(interval.last!).\(csv ? "csv" : "json")"
+            panel.message = settings.text("\(days) dienų abiejų paslaugų suvestinės su šaltiniu ir atnaujinimo laiku. Pokalbių ir prisijungimo duomenų nėra.",
+                                          "\(days)-day summaries for both providers with source and update time. No conversations or credentials.")
             exporting = true
             panel.begin { response in
                 defer { exporting = false }
@@ -136,6 +156,7 @@ struct HistoryView: View {
                 .monospacedDigit().lineLimit(1).minimumScaleFactor(0.65)
             Text(settings.text("tokenų per \(days) d.", "tokens over \(days) days"))
                 .font(.system(size: 11)).foregroundStyle(.secondary)
+            statistics(snapshot: snapshot, source: source, busy: busy, unavailable: unavailable)
             Text(coverage).font(.system(size: 12, weight: .medium))
             Text(status(snapshot: snapshot, source: source, busy: busy, unavailable: unavailable))
                 .font(.system(size: 10)).foregroundStyle(unavailable ? .orange : .secondary)
@@ -143,6 +164,36 @@ struct HistoryView: View {
         }
         .padding(16).frame(maxWidth: .infinity, alignment: .leading)
         .background(color.opacity(0.07), in: RoundedRectangle(cornerRadius: 14))
+    }
+
+    @ViewBuilder private func statistics(snapshot: TokenUsageSnapshot?, source: MenuBarSource,
+                                         busy: Bool, unavailable: Bool) -> some View {
+        if let snapshot, HistoryStatistics.isAvailable(snapshot: snapshot, busy: busy, unavailable: unavailable,
+                                                       skippedLines: source == .claude ? service.skippedLines : 0) {
+            let stats = HistoryStatistics(snapshot: snapshot, days: days)
+            Text(settings.text("Vidurkis: ", "Average: ") + number(Int64(stats.average.rounded()))
+                 + settings.text(" tokenų / užbaigtą dieną", " tokens / completed day"))
+                .font(.system(size: 11)).foregroundStyle(.secondary)
+            if days == 7 {
+                Text(comparisonText(stats)).font(.system(size: 12, weight: .medium))
+                Text("\(dayTitle(stats.recentKeys.first!))–\(dayTitle(stats.recentKeys.last!)) / \(dayTitle(stats.previousKeys.first!))–\(dayTitle(stats.previousKeys.last!))")
+                    .font(.system(size: 10)).foregroundStyle(.secondary)
+                Text(settings.text("Pagal prieinamus įrašus · be šiandienos", "Based on available records · excludes today"))
+                    .font(.system(size: 10)).foregroundStyle(.secondary)
+            }
+        } else {
+            Text(settings.text("Vidurkiui ir palyginimui reikia užbaigto, šiandien atnaujinto duomenų surinkimo.",
+                               "Average and comparison need a completed collection refreshed today."))
+                .font(.system(size: 11)).foregroundStyle(.secondary)
+        }
+    }
+
+    private func comparisonText(_ stats: HistoryStatistics) -> String {
+        let prefix = settings.text("7 užbaigtos dienos: ", "7 completed days: ")
+        if let percent = stats.percentageChange {
+            return prefix + (percent > 0 ? "+" : "") + percent.formatted(.number.precision(.fractionLength(1)).locale(settings.locale)) + " %"
+        }
+        return prefix + (stats.change > 0 ? "+" : "") + number(stats.change) + settings.text(" tokenų", " tokens")
     }
 
     private func status(snapshot: TokenUsageSnapshot?, source: MenuBarSource, busy: Bool, unavailable: Bool) -> String {
@@ -163,7 +214,7 @@ struct HistoryView: View {
     }
     private var samples: [Sample] {
         [("Claude", service.claude), ("Codex", service.codex)].flatMap { name, snapshot -> [Sample] in
-            guard let snapshot else { return [] }
+            guard let snapshot, visibleProviders.contains(name) else { return [] }
             let values = Dictionary(snapshot.days.map { ($0.day, $0.tokens) }, uniquingKeysWith: max)
             return keys.filter { $0 <= UsageDay.key(snapshot.updatedAt) }
                 .map { Sample(provider: name, day: $0, tokens: values[$0] ?? 0) }
@@ -174,7 +225,7 @@ struct HistoryView: View {
             ForEach(samples) { sample in
                 LineMark(x: .value("Day", sample.date), y: .value("Tokens", sample.tokens))
                     .foregroundStyle(by: .value("Provider", sample.provider))
-                    .lineStyle(StrokeStyle(lineWidth: 2)).interpolationMethod(.linear)
+                    .lineStyle(StrokeStyle(lineWidth: 2, dash: sample.provider == "Codex" ? [6, 4] : [])).interpolationMethod(.linear)
                 PointMark(x: .value("Day", sample.date), y: .value("Tokens", sample.tokens))
                     .foregroundStyle(by: .value("Provider", sample.provider)).symbolSize(18)
                     .accessibilityLabel("\(sample.provider), \(dayTitle(sample.day))")
@@ -186,7 +237,7 @@ struct HistoryView: View {
             }
         }
         .chartForegroundStyleScale(["Claude": Color.orange, "Codex": green])
-        .chartLegend(.hidden)
+        .chartLegend(position: .bottom)
         .chartXScale(domain: UsageDay.date(keys.first!)!...UsageDay.date(keys.last!)!, range: .plotDimension(padding: 12))
         .chartYScale(domain: 0...max(1, samples.map(\.tokens).max() ?? 1))
         .chartYAxis { AxisMarks(position: .leading) { value in

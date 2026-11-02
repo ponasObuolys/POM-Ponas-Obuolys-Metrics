@@ -20,9 +20,13 @@ Fable turi atskirą reikšmę ir gavimo laiką. Naujesni bendri duomenys be Fabl
 lauko jos nepaslepia. Naujas pilnas Claude CLI atsakymas be Fable pašalina
 ankstesnę atskiro limito reikšmę. Trūkstamas limitas nelaikomas nuliu.
 
-Claude Max daugiklis skaitomas iš vietinių paskyros metaduomenų. Codex `prolite`
-rodomas kaip ChatGPT Pro 5x, `pro` – kaip ChatGPT Pro 20x. Nežinomas planas
-nerodomas. Plano nustatymas nesprendžiamas iš naudojimo procentų.
+Planų vardai sutikrinti 2026-11-03. Seni Claude 20x/5x identifikatoriai rodomi
+kaip Ultra/Max. Aiškus naujas CLI plano tipas turi pirmenybę prieš seną vietinį
+tipą. Codex `prolite` ir `pro` rodomi kaip ChatGPT Pro, nepriskiriant nepatvirtinto
+daugiklio ar tarifo. Nauji šaltinio pateikti pavadinimai išsaugomi. Cursor ir Grok
+vardai imami iš paslaugos; vietinis Grok bendro plano vardas turi pirmenybę prieš
+seną `grokPlanLabel`. Plano nustatymas nesprendžiamas iš naudojimo procentų.
+Šaltiniai ir atnaujinimo tvarka: [planų vardai](../../docs/PLAN-NAMES.md).
 
 Nuo 2.2 meniu juostoje galima pasirinkti kelis šaltinius: Claude, Fable ir Codex.
 Galima rodyti sunaudotą dalį ar likutį, pasirinkti perspėjimų ribas ir įjungti

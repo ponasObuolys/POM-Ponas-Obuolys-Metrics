@@ -23,6 +23,13 @@ The manual release assets were verified and published independently. Until Apple
 credentials are configured, tag-triggered signed-release jobs will report this
 missing configuration; do not interpret it as successful notarization.
 
+## Provider plan names
+
+Before packaging a release, follow the [plan-name maintenance check](PLAN-NAMES.md):
+recheck official Claude, ChatGPT, Cursor and Grok Bot sources, record the verification
+date, and update compatibility mappings, fixtures and screenshots if needed.
+Do not equate an old API tier identifier with a current marketing name or multiplier.
+
 ## One-time Apple setup
 
 For the enrollment checklist and the separate Mac App Store/iPhone/iPad proposal, see

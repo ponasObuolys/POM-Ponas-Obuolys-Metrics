@@ -63,3 +63,31 @@ baitai sutampa su originaliais ištekliais, programos parašas patikrintas.
 Ankstesnis paketas išsaugotas `dist/backups/POM-replaced-icons-20261018.app`.
 
 Detalės: [integracijų aprašymas](../../docs/CURSOR-GROK-METRICS.md).
+
+## 2026-11-03 · Tiesioginis Grok Bot atnaujinimas
+
+Pridėtas pasirenkamas serverio režimas per Cursor sesiją ir `GetSandUsageStatus`.
+Šios užklausos naudojimas bei JSON laukų schema patikrinti įdiegtos Grok Bot
+programos `main-app.cjs` ir `proto.cjs`. Oficialios Cursor planų dokumentacijos
+bendras savaitės limitas netapatinamas su senų planų Auto/API procentais.
+
+Serverio ir vietinis režimai nesumaišo paskyrų ar gavimo laikų. Išsaugota
+5 min./30 sek. užklausų politika, nesėkmių retinimas bei atšaukimas. Tiesioginis
+režimas nereikalauja veikiančios Grok Bot programos. Gyva užklausa su dabartine
+Cursor sesija grąžino 401; tikras sėkmingas gavimas lieka nepatvirtintas.
+
+381 branduolio patikra ir SwiftUI integracijos testai praėjo, įskaitant naujo
+režimo 401/retinimo/atšaukimo atvejus. Universalus paketas įdiegtas į
+`/Applications/POM.app`, įjungtas `grokBotServerEnabled` ir POM paleistas.
+Ankstesnė aplikacija: `dist/backups/POM-before-grok-server-a94dbc8c.app`.
+Įdiegto vykdomojo failo SHA-256 sutampa su nauju paketu. HTTP 401 kliūtis
+neišnyko nuo paties įdiegimo; prisijungimo atnaujinimas paliktas vartotojui.
+
+## 2026-11-03 · Cursor užšifruotos sesijos pataisymas
+
+Ankstesnė 401 interpretacija buvo klaidinga: POM siuntė Cursor safeStorage
+apvalkalą vietoj iššifruotos sesijos. Pridėtas macOS v10 dekodavimas per tikslų
+Cursor raktinės įrašą, atskira vietinės saugyklos klaida ir apsauga nuo kartotinių
+leidimo dialogų po atsisakymo. Tikros serverio užklausos 00:34 Vilniaus laiku
+sėkmingai grąžino Grok Bot (1 limitas) ir Cursor (2 limitai). Sesijos neatnaujinome,
+prisijungimo duomenys nebuvo spausdinami. 411 branduolio patikrų praėjo.

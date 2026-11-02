@@ -838,12 +838,39 @@ do {
     checkEqual("Fable ir planas išlieka po išsaugojimo", store.load(), snapshot)
 } catch { failures.append("Fable skaitymas ir išsaugojimas: \(error)") }
 
-checkEqual("Claude Max 20x", SubscriptionPlan.claude(type: "max", tier: "default_claude_max_20x"), "Max 20x")
-checkEqual("Claude Max 5x", SubscriptionPlan.claude(type: "max", tier: "default_claude_max_5x"), "Max 5x")
+checkEqual("Claude Max 20x", SubscriptionPlan.claude(type: "max", tier: "default_claude_max_20x"), "Ultra")
+checkEqual("Claude Max 5x", SubscriptionPlan.claude(type: "max", tier: "default_claude_max_5x"), "Max")
 checkEqual("nežinomas Max daugiklis neišgalvojamas", SubscriptionPlan.claude(type: "max", tier: nil), "Max")
-checkEqual("ChatGPT Pro 5x", SubscriptionPlan.codex("prolite"), "ChatGPT Pro 5x")
-checkEqual("ChatGPT Pro 20x", SubscriptionPlan.codex("pro"), "ChatGPT Pro 20x")
-checkEqual("nežinomas planas neišgalvojamas", SubscriptionPlan.codex("new-plan"), nil)
+checkEqual("ChatGPT Pro 5x", SubscriptionPlan.codex("prolite"), "ChatGPT Pro")
+checkEqual("ChatGPT Pro 20x", SubscriptionPlan.codex("pro"), "ChatGPT Pro")
+checkEqual("nežinomas serverio planas išlieka", SubscriptionPlan.codex("new-plan"), "ChatGPT new-plan")
+
+checkEqual("Explicit Ultra overrides old 5x tier", SubscriptionPlan.claude(type: "ultra", tier: "default_claude_max_5x"), "Ultra")
+checkEqual("Explicit Pro overrides stale Max tier", SubscriptionPlan.claude(type: "pro", tier: "default_claude_max_20x"), "Pro")
+checkEqual("Local Claude organization alias", SubscriptionPlan.claude(type: "claude_max", tier: "default_claude_max_20x"), "Ultra")
+checkEqual("Future Claude name overrides legacy tier", SubscriptionPlan.claude(type: "Future Plan", tier: "default_claude_max_20x"), "Future Plan")
+checkEqual("Unknown tier does not invent a plan", SubscriptionPlan.claude(type: nil, tier: "default_claude_future_30x"), nil)
+checkEqual("Explicit Pro 100", SubscriptionPlan.codex("pro_100"), "ChatGPT Pro 100")
+checkEqual("Explicit Pro 200", SubscriptionPlan.codex("pro_200"), "ChatGPT Pro 200")
+checkEqual("Explicit Pro 500", SubscriptionPlan.codex("Pro 500"), "ChatGPT Pro 500")
+checkEqual("Provider prefix is not duplicated", SubscriptionPlan.codex("ChatGPT Future"), "ChatGPT Future")
+checkEqual("Legacy Team identifier", SubscriptionPlan.codex("team"), "ChatGPT Business")
+checkEqual("Blank plan omitted", SubscriptionPlan.providedName("  "), nil)
+checkEqual("Control characters omitted", SubscriptionPlan.providedName("Pro\nUltra"), nil)
+checkEqual("Long plan omitted", SubscriptionPlan.providedName(String(repeating: "x", count: 101)), nil)
+checkEqual("Future provider name preserved", SubscriptionPlan.providedName("  Future Premium+  "), "Future Premium+")
+
+do {
+    let folder = FileManager.default.temporaryDirectory.appendingPathComponent("pom-plan-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: folder) }
+    try Data(#"{"oauthAccount":{"organizationType":"claude_max","organizationRateLimitTier":"default_claude_max_20x"}}"#.utf8)
+        .write(to: folder.appendingPathComponent(".claude.json"))
+    checkEqual("Old local organization becomes Ultra", SubscriptionPlan.claudeLocal(home: folder), "Ultra")
+    checkEqual("Generic CLI max refined by local tier", SubscriptionPlan.claudeLocal(home: folder, preferredType: "max"), "Ultra")
+    checkEqual("New CLI type beats stale local plan", SubscriptionPlan.claudeLocal(home: folder, preferredType: "Future Plan"), "Future Plan")
+    checkEqual("Changed CLI subscription beats local Ultra", SubscriptionPlan.claudeLocal(home: folder, preferredType: "pro"), "Pro")
+} catch { failures.append("Local plan names: \(error)") }
 
 do {
     let data = Data(#"{"result":{"rateLimits":{"primary":{"usedPercent":99,"windowDurationMins":10080}},"rateLimitsByLimitId":{"codex":{"planType":"prolite","primary":{"usedPercent":12,"windowDurationMins":10080}},"spark":{"primary":{"usedPercent":80,"windowDurationMins":10080}}}}}"#.utf8)
@@ -1308,6 +1335,13 @@ do {
     checkEqual("Grok Bot: cache read does not refresh capture date", snapshot.capturedAt, now.addingTimeInterval(-180))
     checkEqual("Grok Bot: plan from source", snapshot.planName, "Grok Bot Plan")
     checkEqual("Grok Bot: on demand cents", snapshot.onDemand, .init(usedCents: 50, limitCents: 1000))
+    var unifiedCache = value
+    var unifiedReading = value["reading"] as! [String: Any]
+    var unifiedUsage = unifiedReading["usage"] as! [String: Any]
+    unifiedUsage["unifiedPlanName"] = "Future Premium+"
+    unifiedReading["usage"] = unifiedUsage
+    unifiedCache["reading"] = unifiedReading
+    checkEqual("Grok cache prefers unified source name", try GrokBotCache.parse(data(unifiedCache), now: now).planName, "Future Premium+")
     for invalid in [try data(value, schema: 999), try data(["kind": "absent", "selectedTeamId": NSNull(), "expiresAtMs": (now.timeIntervalSince1970 + 1000) * 1000])] {
         do { _ = try GrokBotCache.parse(invalid, now: now); check("Grok Bot: incompatible/absent cache rejected", false) }
         catch { check("Grok Bot: incompatible/absent cache rejected", true) }
@@ -1342,6 +1376,89 @@ do {
     do { _ = try GrokBotCache.parse(data(value), now: now); check("Grok Bot: future readings rejected", false) }
     catch { check("Grok Bot: future readings rejected", true) }
 } catch { failures.append("Grok Bot cache: \(error)") }
+
+// MARK: - Display modes, local reset dates, completed history periods
+let statsNow = UsageDay.date("2026-11-03")!.addingTimeInterval(12 * 3600)
+let statsKeys = UsageDay.keys(days: 15, now: statsNow)
+let statsSnapshot = TokenUsageSnapshot(days: statsKeys.enumerated().map {
+    TokenDay(day: $0.element, tokens: $0.offset < 7 ? 10 : $0.offset < 14 ? 20 : 99999)
+}, updatedAt: statsNow)
+let statistics = HistoryStatistics(snapshot: statsSnapshot, days: 7, now: statsNow)
+checkClose("Average excludes today's partial data", statistics.average, 20)
+checkEqual("Completed week ends yesterday", statistics.recentKeys.last, "2026-11-02")
+checkEqual("Previous week starts 14 days ago", statistics.previousKeys.first, "2026-10-20")
+checkEqual("Completed weekly sum", statistics.recentTotal, 140)
+checkClose("Weekly growth", statistics.percentageChange!, 100)
+let zeroStats = HistoryStatistics(snapshot: TokenUsageSnapshot(days: [], updatedAt: statsNow), days: 7, now: statsNow)
+check("Zero baseline has no percentage", zeroStats.percentageChange == nil && zeroStats.change == 0)
+check("Partial collection is not compared", !HistoryStatistics.isAvailable(snapshot: statsSnapshot, busy: true, unavailable: false, now: statsNow))
+check("Failed refresh is not compared", !HistoryStatistics.isAvailable(snapshot: statsSnapshot, busy: false, unavailable: true, now: statsNow))
+check("Skipped records are not compared", !HistoryStatistics.isAvailable(snapshot: statsSnapshot, busy: false, unavailable: false, skippedLines: 1, now: statsNow))
+check("Old cached history is not compared", !HistoryStatistics.isAvailable(snapshot: statsSnapshot, busy: false, unavailable: false, now: statsNow.addingTimeInterval(86400)))
+for used in [0.0, 20, 100, 125] {
+    let window = DisplayWindow(usedPercentage: used, resetsAt: nil, didReset: false)
+    checkClose("Used display \(used)", window.percentage(showRemaining: false), used)
+    checkClose("Remaining display \(used)", window.percentage(showRemaining: true), max(0, 100 - used))
+    checkClose("Remaining bar \(used)", window.fillFraction(showRemaining: true), max(0, 1 - used / 100))
+}
+let vilnius = TimeZone(identifier: "Europe/Vilnius")!
+let localNow = ISO8601DateFormatter().date(from: "2026-11-03T21:30:00Z")!
+let nextDay = localNow.addingTimeInterval(3600)
+check("Reset date crosses local midnight", !AppLanguage.en.resetTime(nextDay, now: localNow, timeZone: vilnius).hasPrefix("today"))
+let dst1 = ISO8601DateFormatter().date(from: "2026-10-25T00:30:00Z")!
+let dst2 = dst1.addingTimeInterval(3600)
+check("Full reset time distinguishes repeated DST hour", AppLanguage.en.fullResetTime(dst1, timeZone: vilnius) != AppLanguage.en.fullResetTime(dst2, timeZone: vilnius))
+
+// MARK: - Direct Grok Bot DashboardService usage
+let grokNow = UsageDay.date("2026-11-03")!
+do {
+    func parseGrok(_ json: String) throws -> ProviderUsageSnapshot {
+        try GrokBotUsageParser.parse(Data(json.utf8), capturedAt: grokNow)
+    }
+    let unified = try parseGrok(#"{"usagePercent":23.5,"hasNonZeroIncludedLimit":true,"isUnified":true,"cursorPlanName":"Premium","grokPlanLabel":"legacy","nextResetTimestampUtc":"2026-11-06T12:34:56.123Z"}"#)
+    checkClose("Direct Grok quota is the server meter", unified.meters[0].window.usedPercentage, 23.5)
+    checkEqual("Direct Grok uses weekly meter", unified.meters[0].kind, .weekly)
+    checkEqual("Unified plan label", unified.planName, "Premium")
+    checkEqual("Server capture time", unified.capturedAt, grokNow)
+    check("No invented extra spending for unified pool", unified.onDemand == nil)
+    check("Protobuf fractional timestamp", unified.meters[0].window.resetsAt != nil)
+    let legacy = try parseGrok(#"{"usagePercent":0,"hasNonZeroIncludedLimit":true,"grokPlanLabel":"SuperGrok"}"#)
+    checkEqual("Legacy plan label", legacy.planName, "SuperGrok")
+    checkClose("Explicit zero preserved", legacy.meters[0].window.usedPercentage, 0)
+    check("Missing reset stays unknown", legacy.meters[0].window.resetsAt == nil)
+    let trial = try parseGrok(#"{"usagePercent":101,"sandTrialExpiresAt":"2026-11-05T00:00:00Z"}"#)
+    checkClose("Active trial and overage", trial.meters[0].window.usedPercentage, 101)
+    for json in [#"{}"#, #"{"hasNonZeroIncludedLimit":true}"#,
+                 #"{"usagePercent":-1,"hasNonZeroIncludedLimit":true}"#,
+                 #"{"usagePercent":12,"usesPooledEnterpriseAllowance":true,"hasNonZeroIncludedLimit":true}"#,
+                 #"{"usagePercent":12,"sandTrialExpiresAt":"2026-11-01T00:00:00Z"}"#,
+                 #"{"usagePercent":12,"hasNonZeroIncludedLimit":true,"nextResetTimestampUtc":"invalid"}"#] {
+        do { _ = try parseGrok(json); check("Invalid Grok response rejected", false) }
+        catch { check("Invalid Grok response rejected", true) }
+    }
+} catch { failures.append("Direct Grok parser: \(error)") }
+
+do {
+    let fixture = "cursor-safe-storage:v1:djEwRo2cjoWtj7lF8v8jKUMQ2QtIUL/ufJXBAk1YpWg/Oqc="
+    let dbURL = FileManager.default.temporaryDirectory.appendingPathComponent("pom-encrypted-\(UUID().uuidString).sqlite")
+    defer { try? FileManager.default.removeItem(at: dbURL) }
+    var encryptedDB: OpaquePointer?
+    precondition(sqlite3_open(dbURL.path, &encryptedDB) == SQLITE_OK)
+    precondition(sqlite3_exec(encryptedDB, "CREATE TABLE ItemTable (key TEXT, value TEXT); INSERT INTO ItemTable VALUES ('cursorAuth/accessToken', '\(fixture)');", nil, nil, nil) == SQLITE_OK)
+    sqlite3_close(encryptedDB)
+    let decodedSession = try CursorClient.readSession(database: dbURL) { "synthetic-password" }
+    checkEqual("Cursor SQLite encrypted envelope becomes plaintext session", decodedSession.fingerprint, CursorClient.Session(accessToken: "synthetic-session").fingerprint)
+    checkEqual("Cursor encrypted session decodes", try CursorSessionStorage.decode(fixture) { "synthetic-password" }, "synthetic-session")
+    checkEqual("Cursor legacy does not touch Keychain", try CursorSessionStorage.decode("legacy-token") { throw CursorClient.ClientError.unavailable }, "legacy-token")
+    for invalid in ["cursor-safe-storage:v2:abc", "cursor-safe-storage:v1:!!!!", "cursor-safe-storage:v1:djEw", "bad token", "", "token\r\nheader"] {
+        do { _ = try CursorSessionStorage.decode(invalid) { "synthetic-password" }; check("Cursor invalid storage rejected", false) }
+        catch { checkEqual("Cursor local storage error distinct from sign-out", error as? CursorClient.ClientError, .credentialStorage) }
+    }
+    do { _ = try CursorSessionStorage.decode(fixture) { "wrong-password" }; check("Cursor wrong key rejected", false) }
+    catch { checkEqual("Cursor wrong key is local error", error as? CursorClient.ClientError, .credentialStorage) }
+    do { _ = try CursorSessionStorage.decode(fixture) { throw CursorClient.ClientError.credentialStorage }; check("Cursor denied Keychain rejected", false) }
+    catch { checkEqual("Cursor denied Keychain is local error", error as? CursorClient.ClientError, .credentialStorage) }
+} catch { failures.append("Cursor encrypted storage: \(error)") }
 
 // MARK: - Rezultatas
 

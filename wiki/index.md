@@ -22,6 +22,8 @@ sources:
 
 ## Synthesis
 
+- [[wiki/synthesis/usage-interface]] – Nepriklausomi paslaugų pasirinkimai, kompaktiškas vaizdas, būsenos, istorijos palyginimas ir CSV.
+
 - [[wiki/synthesis/bento-dashboard]] – Persitvarkantis limitų tinklelis, vienos kortelės prisegimas ir Fable piktograma.
 
 - [[wiki/synthesis/cursor-grok-metrics]] – Vietinės Cursor ir Grok Bot metrikos, duomenų šaltiniai ir patikros ribos.

@@ -42,7 +42,7 @@ final class UsageViewModel: ObservableObject {
     private var lastLocalFileDate: Date?
     private var gate = ServerFetchGate(enabled: true)
     private var tracker: AlertTracker
-    private var isFetching = false
+    @Published private(set) var isFetching = false
     private var timer: Timer?
 
     /// Kas kiek tikrinamas failas ir perpiešiama ikona.
@@ -252,12 +252,7 @@ final class UsageViewModel: ObservableObject {
         if let snapshot { onSnapshot?(snapshot) }
         if let fableSnapshot { onSnapshot?(fableSnapshot) }
         let type = claudeSnapshot?.plan
-        let localPlan = SubscriptionPlan.claudeLocal(home: home)
-        if type.map({ localPlan?.lowercased().hasPrefix($0.lowercased()) == true }) ?? true {
-            planTitle = localPlan ?? SubscriptionPlan.claude(type: type, tier: nil)
-        } else {
-            planTitle = SubscriptionPlan.claude(type: type, tier: nil)
-        }
+        planTitle = SubscriptionPlan.claudeLocal(home: home, preferredType: type)
     }
 
     private func fetchFromClaude(manual: Bool, afterSignIn: Bool = false) {

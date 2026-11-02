@@ -64,3 +64,14 @@ rejects("Malformed JSON rejected") { _ = try ReportFiles.read(file) }
 rejects("Directories cannot be imported") { _ = try ReportFiles.read(directory) }
 rejects("Remote URLs cannot trigger network requests") { _ = try ReportFiles.read(URL(string: "https://example.invalid/report.json")!) }
 print("\(passed) companion data checks passed")
+
+// Optional desktop integration fixtures, produced by scripts/check-ui.sh.
+if let fixtures = ProcessInfo.processInfo.environment["POM_REPORT_FIXTURES"] {
+    for days in [7, 30] {
+        let report = try ReportFiles.read(URL(fileURLWithPath: fixtures).appendingPathComponent("history-export-\(days).json"))
+        let period = ReportPeriod(report: report, days: days)
+        check(report.schemaVersion == 1 && period.entries.count == 2, "Desktop export remains compatible")
+        check(period.entries.allSatisfy { period.records(for: $0).count == days }, "Desktop selected interval imports")
+    }
+    print("Desktop 7/30-day JSON imports passed")
+}

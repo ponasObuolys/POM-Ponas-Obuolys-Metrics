@@ -58,7 +58,7 @@ struct MenuBarLabelView: View {
 
     private func numberText(_ window: DisplayWindow) -> String {
         guard hasData && !window.didReset else { return "–" }
-        let value = showRemaining ? window.remainingPercentage : window.usedPercentage
+        let value = window.percentage(showRemaining: showRemaining)
         return "\(Int(value.rounded()))%"
     }
 
@@ -66,6 +66,6 @@ struct MenuBarLabelView: View {
     /// Rodant sunaudotą dalį ji pildosi, rodant likutį – tuštėja, kaip degalų matuoklis.
     /// Spalva abiem atvejais imama pagal sunaudotą dalį, kad pavojus būtų matomas vienodai.
     private func fillFraction(_ window: DisplayWindow) -> Double {
-        showRemaining ? 1 - window.fraction : window.fraction
+        window.fillFraction(showRemaining: showRemaining)
     }
 }

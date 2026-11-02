@@ -30,3 +30,10 @@ POM rodo Claude ir Codex naudojimo limitus tiesiog Mac meniu juostoje. Vienu
 žvilgsniu matyk likutį, atsistatymo laiką ir papildomus kreditus. Peržiūrėk naudojimo
 istoriją, pasirink pranešimus ir laikyk kelių įrankių indikatorius šalia laikrodžio.
 Programa veikia lietuviškai ir angliškai, o istoriją saugo tik tavo kompiuteryje.
+
+## Development interface additions
+
+The working source adds a compact dashboard, independent menu indicators, manual
+card order, clickable data status and local reset times. History adds completed-day
+averages, completed-week comparisons, provider filters and 7/30-day JSON or CSV
+exports. These additions are not yet in the public download; see [usage interface](USAGE-INTERFACE.md).

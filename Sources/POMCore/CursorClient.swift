@@ -6,7 +6,7 @@ import SQLite3
 /// No refresh tokens, browser cookies or session credentials are saved by POM.
 public struct CursorClient: Sendable {
     public enum ClientError: Error, Equatable {
-        case signedOut, unavailable, invalidResponse, rateLimited
+        case signedOut, unavailable, invalidResponse, rateLimited, credentialStorage
     }
 
     public static func databaseURL(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL {
@@ -37,7 +37,7 @@ public struct CursorClient: Sendable {
 
     public init() {}
 
-    public static func readSession(database: URL) throws -> Session {
+    public static func readSession(database: URL, password: () throws -> String = CursorSessionStorage.readPassword) throws -> Session {
         var db: OpaquePointer?
         guard sqlite3_open_v2(database.path, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_NOMUTEX, nil) == SQLITE_OK else {
             sqlite3_close(db)
@@ -57,7 +57,7 @@ public struct CursorClient: Sendable {
         guard (1...32768).contains(length),
               let token = String(bytes: UnsafeBufferPointer(start: bytes, count: length), encoding: .utf8),
               !token.contains(where: { $0.isWhitespace || $0.isNewline }) else { throw ClientError.signedOut }
-        return Session(accessToken: token)
+        return Session(accessToken: try CursorSessionStorage.decode(token, password: password))
     }
 
     public func fetch(session: Session, now: Date = Date()) async throws -> ProviderUsageSnapshot {
@@ -71,6 +71,23 @@ public struct CursorClient: Sendable {
             async let metadata = try? read(method: "GetPlanInfo", session: session, transport: transport)
             let data = try await read(method: "GetCurrentPeriodUsage", session: session, transport: transport)
             return try await CursorUsageParser.parse(data, planData: metadata, capturedAt: now)
+        } catch let error as ClientError { throw error }
+        catch is CancellationError { throw CancellationError() }
+        catch { throw ClientError.unavailable }
+    }
+
+    /// The same read-only DashboardService operation used by Grok Bot itself.
+    /// Deliberately separate from Cursor's Auto/API meters, including on legacy plans.
+    public func fetchGrokBot(session: Session, now: Date = Date()) async throws -> ProviderUsageSnapshot {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.httpCookieStorage = nil
+        configuration.httpShouldSetCookies = false
+        configuration.urlCache = nil
+        let transport = URLSession(configuration: configuration, delegate: CursorRedirectBlocker(), delegateQueue: nil)
+        defer { transport.invalidateAndCancel() }
+        do {
+            let data = try await read(method: "GetSandUsageStatus", session: session, transport: transport)
+            return try GrokBotUsageParser.parse(data, capturedAt: now)
         } catch let error as ClientError { throw error }
         catch is CancellationError { throw CancellationError() }
         catch { throw ClientError.unavailable }
@@ -190,7 +207,7 @@ public enum CursorUsageParser {
             onDemand = .init(usedCents: used, limitCents: nonnegative(spend.individualLimit?.value))
         } else { onDemand = nil }
         guard !meters.isEmpty || onDemand != nil else { throw CursorClient.ClientError.invalidResponse }
-        let planName = info?.planName.flatMap { $0.isEmpty || $0.count > 100 ? nil : $0 }
+        let planName = SubscriptionPlan.providedName(info?.planName)
         return .init(meters: meters, capturedAt: capturedAt, planName: planName, onDemand: onDemand)
     }
 

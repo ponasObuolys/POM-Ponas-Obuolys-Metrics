@@ -30,18 +30,30 @@ import POMCore
         precondition(settings.menuBarSources == [.codex], "At least one source must remain")
         settings.setSource(.claude, enabled: true)
         precondition(Settings(defaults: defaults).menuBarSources == [.claude, .codex])
-        settings.togglePin(.codex)
-        precondition(Settings(defaults: defaults).pinnedSource == .codex, "Pin must survive relaunch")
+        precondition(settings.panelSources == [.codex], "Panel selection migrates once and stays independent")
+        settings.setPanelSource(.claude, enabled: true)
         settings.togglePin(.claude)
-        precondition(settings.pinnedSource == .claude, "A second pin replaces the first")
         settings.setSource(.claude, enabled: false)
-        precondition(settings.pinnedSource == nil && Settings(defaults: defaults).pinnedSource == nil,
-                     "Hiding the pinned provider must restore automatic ordering")
+        precondition(settings.pinnedSource == .claude && settings.panelSources.contains(.claude))
+        settings.panelOrder = .manual
+        settings.panelStyle = .compact
+        settings.movePanelSource(.claude, by: -1)
+        let restoredSettings = Settings(defaults: defaults)
+        precondition(restoredSettings.panelSources == [.claude, .codex])
+        precondition(restoredSettings.panelOrder == .manual && restoredSettings.panelStyle == .compact)
+        precondition(restoredSettings.pinnedSource == .claude)
+        settings.setPanelSource(.claude, enabled: false)
+        precondition(settings.pinnedSource == nil)
         settings.togglePin(.claude)
-        precondition(settings.pinnedSource == nil, "A hidden provider cannot be pinned")
+        precondition(settings.pinnedSource == nil)
+        settings.setPanelSource(.codex, enabled: false)
+        precondition(settings.panelSources == [.codex])
+        settings.setPanelSource(.claude, enabled: true)
         settings.setSource(.claude, enabled: true)
+        settings.panelOrder = .automatic
+        settings.panelStyle = .cards
         settings.togglePin(.codex); settings.togglePin(.codex)
-        precondition(settings.pinnedSource == nil, "Clicking the same pin again unpins it")
+        precondition(settings.pinnedSource == nil)
         settings.language = .lt
         precondition(Settings(defaults: defaults).language == .lt)
         let notifications = NotificationService()
@@ -54,15 +66,16 @@ import POMCore
         let weeklyOnly = UsageViewModel(settings: settings, notifications: notifications, home: root,
                                        supportDirectory: weeklySupport, claudeExecutable: nil)
         precondition(weeklyOnly.hasData && !weeklyOnly.hasFiveHourLimit)
+        precondition(weeklyOnly.planTitle == "Ultra", "Explicit CLI plan survives legacy metadata")
         precondition(!weeklyOnly.isAwaitingClaudeUpdate && weeklyOnly.menuWindows.count == 1)
         precondition(weeklyOnly.sevenDay.usedPercentage == 38)
-        try render(UsagePanelView(model: weeklyOnly, codex: codex, settings: settings),
+        try await render(UsagePanelView(model: weeklyOnly, codex: codex, settings: settings),
                    name: "claude-weekly-only", directory: output, scheme: .dark)
         let disconnected = UsageViewModel(settings: settings, notifications: notifications, home: root, supportDirectory: support)
         precondition(disconnected.hasData && !disconnected.isBridgeConnected)
-        precondition(disconnected.fable?.usedPercentage == 4 && disconnected.planTitle == "Max 20x")
-        precondition(codex.planTitle == "ChatGPT Pro 5x")
-        try render(UsagePanelView(model: disconnected, codex: codex, settings: settings), name: "reconnect", directory: output, scheme: .light)
+        precondition(disconnected.fable?.usedPercentage == 4 && disconnected.planTitle == "Ultra")
+        precondition(codex.planTitle == "ChatGPT Pro")
+        try await render(UsagePanelView(model: disconnected, codex: codex, settings: settings), name: "reconnect", directory: output, scheme: .light)
         let claude = root.appendingPathComponent(".claude")
         try FileManager.default.createDirectory(at: claude, withIntermediateDirectories: true)
         try Data("#!/bin/bash\n\(Bridge.marker)\n".utf8).write(to: claude.appendingPathComponent("statusline.sh"))
@@ -71,22 +84,22 @@ import POMCore
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: bridge.path)
         let connected = UsageViewModel(settings: settings, notifications: notifications, home: root, supportDirectory: support)
         precondition(connected.isBridgeConnected)
-        try render(UsagePanelView(model: connected, codex: codex, settings: settings), name: "normal-light", directory: output, scheme: .light)
-        try render(UsagePanelView(model: connected, codex: codex, settings: settings), name: "normal-dark", directory: output, scheme: .dark)
+        try await render(UsagePanelView(model: connected, codex: codex, settings: settings), name: "normal-light", directory: output, scheme: .light)
+        try await render(UsagePanelView(model: connected, codex: codex, settings: settings), name: "normal-dark", directory: output, scheme: .dark)
         settings.language = .en
-        try render(SupportReminderView(settings: settings, occasion: .welcome, version: "2.2.3", dismiss: {}), name: "support-welcome-en", directory: output, scheme: .light)
-        try render(SupportReminderView(settings: settings, occasion: .update, version: "2.2.3", dismiss: {}), name: "support-update-en", directory: output, scheme: .dark)
+        try await render(SupportReminderView(settings: settings, occasion: .welcome, version: "2.2.3", dismiss: {}), name: "support-welcome-en", directory: output, scheme: .light)
+        try await render(SupportReminderView(settings: settings, occasion: .update, version: "2.2.3", dismiss: {}), name: "support-update-en", directory: output, scheme: .dark)
         settings.language = .lt
-        try render(SupportReminderView(settings: settings, occasion: .welcome, version: "2.2.3", dismiss: {}), name: "support-welcome-lt", directory: output, scheme: .light)
-        try render(SupportReminderView(settings: settings, occasion: .update, version: "2.2.3", dismiss: {}), name: "support-update-lt", directory: output, scheme: .dark)
+        try await render(SupportReminderView(settings: settings, occasion: .welcome, version: "2.2.3", dismiss: {}), name: "support-welcome-lt", directory: output, scheme: .light)
+        try await render(SupportReminderView(settings: settings, occasion: .update, version: "2.2.3", dismiss: {}), name: "support-update-lt", directory: output, scheme: .dark)
         settings.language = .en
-        try render(UsagePanelView(model: connected, codex: codex, settings: settings), name: "english-light", directory: output, scheme: .light)
-        try render(ExtraUsageView(settings: settings, claude: ClaudeExtraUsage(enabled: true, used: 1234, limit: 5000, percentage: 24.68, currency: "USD", decimalPlaces: 2)).frame(width: 310), name: "claude-credits", directory: output, scheme: .light)
+        try await render(UsagePanelView(model: connected, codex: codex, settings: settings), name: "english-light", directory: output, scheme: .light)
+        try await render(ExtraUsageView(settings: settings, claude: ClaudeExtraUsage(enabled: true, used: 1234, limit: 5000, percentage: 24.68, currency: "USD", decimalPlaces: 2)).frame(width: 310), name: "claude-credits", directory: output, scheme: .light)
         let extras = CodexAdditionalUsage(credits: CodexCredits(hasCredits: true, unlimited: false, balance: "240"), spendLimit: CodexSpendLimit(limit: "500", used: "260", remainingPercent: 48, resetsAt: nil), resetCredits: 2)
-        try render(ExtraUsageView(settings: settings, codex: extras).frame(width: 310), name: "codex-credits", directory: output, scheme: .dark)
+        try await render(ExtraUsageView(settings: settings, codex: extras).frame(width: 310), name: "codex-credits", directory: output, scheme: .dark)
         let historyDirectory = root.appendingPathComponent("history")
         let emptyHistory = HistoryService(settings: settings, notifications: notifications, directory: historyDirectory)
-        try render(HistoryView(service: emptyHistory, settings: settings), name: "history-empty", directory: output, scheme: .light)
+        try await render(HistoryView(service: emptyHistory, settings: settings), name: "history-empty", directory: output, scheme: .light)
         let now = Date()
         let keys = UsageDay.keys(days: 30, now: now)
         let claudeDays = keys.enumerated().map { TokenDay(day: $0.element, tokens: Int64([320000, 1450000, 820000, 2600000, 1800000, 960000, 2100000][$0.offset % 7])) }
@@ -99,14 +112,38 @@ import POMCore
         precondition(report.entries[0].snapshot.days == claudeDays)
         precondition(report.entries[1].snapshot.days == codexDays)
         precondition(!FileManager.default.fileExists(atPath: historyDirectory.path), "Export must not scan or save history caches")
+        for period in [7, 30] {
+            let exported = try UsageHistoryReport.decode(populated.exportReportData(days: period, now: now))
+            let selectedKeys = Set(UsageDay.keys(days: period, now: now))
+            precondition(exported.entries.allSatisfy { $0.snapshot.days.count == period && $0.snapshot.days.allSatisfy { selectedKeys.contains($0.day) } })
+            precondition(exported.entries.allSatisfy { abs($0.snapshot.updatedAt.timeIntervalSince(now)) < 1 })
+            let csv = String(data: try populated.exportCSVData(days: period, now: now), encoding: .utf8)!
+            precondition(csv.hasPrefix("source,day,tokens,updated_at,collection_status\r\n"))
+            precondition(csv.components(separatedBy: "\r\n").count == 2 * period + 2)
+            try populated.exportReportData(days: period, now: now).write(to: output.appendingPathComponent("history-export-\(period).json"))
+        }
+        let sparseSnapshot = TokenUsageSnapshot(days: [TokenDay(day: keys.last!, tokens: 42)], updatedAt: now.addingTimeInterval(-10))
+        let sparseHistory = HistoryService(settings: settings, notifications: notifications, directory: historyDirectory,
+                                            previewClaude: sparseSnapshot)
+        let sparseCSV = String(data: try sparseHistory.exportCSVData(days: 7, now: now), encoding: .utf8)!
+        precondition(sparseCSV.components(separatedBy: "\r\n").count == 3, "CSV must not fabricate missing buckets")
+        let sparseJSON = try UsageHistoryReport.decode(sparseHistory.exportReportData(days: 7, now: now))
+        precondition(sparseJSON.entries[0].snapshot.days.count == 1)
+        precondition(abs(sparseJSON.entries[0].snapshot.updatedAt.timeIntervalSince(sparseSnapshot.updatedAt)) < 1,
+                     "Export cannot make cached readings fresh")
+        for freshness in [Freshness.live, .stale, .none] {
+            try await render(ProviderStatusView(status: ProviderStatus(language: .lt, capturedAt: now,
+                source: "Claude Code CLI", busy: freshness == .live), freshness: freshness),
+                name: "status-\(freshness)", directory: output, scheme: .light)
+        }
         // Synthetic data only; a reviewable example of the exact export format.
         try reportData.write(to: output.appendingPathComponent("history-export-example.json"), options: .atomic)
-        try render(HistoryView(service: populated, settings: settings), name: "history-english", directory: output, scheme: .light)
+        try await render(HistoryView(service: populated, settings: settings), name: "history-english", directory: output, scheme: .light)
         settings.language = .lt
-        try render(HistoryView(service: populated, settings: settings), name: "history-lithuanian", directory: output, scheme: .dark)
-        try render(HistoryView(service: populated, settings: settings, days: 30), name: "history-thirty-days", directory: output, scheme: .light)
+        try await render(HistoryView(service: populated, settings: settings), name: "history-lithuanian", directory: output, scheme: .dark)
+        try await render(HistoryView(service: populated, settings: settings, days: 30), name: "history-thirty-days", directory: output, scheme: .light)
         let group = MenuBarGroupView(entries: [MenuBarEntry(source: .claude, windows: [connected.fiveHour, connected.sevenDay], hasData: true), MenuBarEntry(source: .codex, windows: [codex.window], hasData: true)], showRemaining: false)
-        try render(group, name: "menubar-together", directory: output, scheme: .light)
+        try await render(group, name: "menubar-together", directory: output, scheme: .light)
         let newer = UsageSnapshot(fiveHour: UsageWindow(usedPercentage: 9, resetsAt: nil), sevenDay: UsageWindow(usedPercentage: 5, resetsAt: nil), capturedAt: Date(), source: .statusline)
         try SnapshotStore(fileURL: support.appendingPathComponent("snapshot.json")).save(newer)
         let merged = UsageViewModel(settings: settings, notifications: notifications, home: root, supportDirectory: support)
@@ -166,7 +203,7 @@ import POMCore
         precondition(recovery.sevenDay.usedPercentage == 33 && recovery.sevenDay.didReset)
         for language in [AppLanguage.en, .lt] {
             settings.language = language
-            try render(UsagePanelView(model: recovery, codex: codex, settings: settings), name: "expired-\(language)", directory: output, scheme: .dark)
+            try await render(UsagePanelView(model: recovery, codex: codex, settings: settings), name: "expired-\(language)", directory: output, scheme: .dark)
         }
         try renderMenuBar(MenuBarLabelView(source: .claude, windows: [recovery.fiveHour, recovery.sevenDay], showRemaining: true, hasData: true),
                           name: "expired-menubar", directory: output, scheme: .dark)
@@ -229,7 +266,7 @@ import POMCore
         let emptyClaude = UsageViewModel(settings: settings, notifications: notifications, home: root, supportDirectory: root.appendingPathComponent("empty-claude"))
         for language in [AppLanguage.en, .lt] {
             settings.language = language
-            try render(UsagePanelView(model: emptyClaude, codex: signedOutCodex, settings: settings), name: "chatgpt-sign-in-\(language)", directory: output, scheme: .light)
+            try await render(UsagePanelView(model: emptyClaude, codex: signedOutCodex, settings: settings), name: "chatgpt-sign-in-\(language)", directory: output, scheme: .light)
         }
         await signedOutCodex.signInToChatGPT()
         await waitForCodex(signedOutCodex)
@@ -268,7 +305,70 @@ import POMCore
         }
         print("Claude sign-in recovery: success, failed login, launch failure, timeout and expired displays passed")
         print("ChatGPT sign-in recovery: signed-out, expired credentials, success, failure, launch failure and timeout passed")
+        try await checkGrokServer(root: root, output: output)
         try await checkAdditionalUsage(settings: settings, root: root, output: output, claude: disconnected, codex: codex)
+    }
+
+    @MainActor static func checkGrokServer(root: URL, output: URL) async throws {
+        let suite = "pom-grok-server-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = Settings(defaults: defaults)
+        precondition(!settings.grokBotServerEnabled)
+        let sessionFile = root.appendingPathComponent("grok-server-session")
+        let requests = root.appendingPathComponent("grok-server-requests")
+        let failure = root.appendingPathComponent("grok-server-failure")
+        try "account-A".write(to: sessionFile, atomically: true, encoding: .utf8)
+        let snapshot = ProviderUsageSnapshot(meters: [.init(kind: .weekly, usedPercentage: 37,
+            resetsAt: Date().addingTimeInterval(86400))], capturedAt: Date(), planName: "Premium")
+        let model = AdditionalUsageViewModel(settings: settings, home: root,
+            readCursorSession: { CursorClient.Session(accessToken: try String(contentsOf: sessionFile, encoding: .utf8)) },
+            fetchCursor: { _ in preconditionFailure("Cursor metrics remain disabled") },
+            fetchGrokBot: { _ in
+                let old = (try? String(contentsOf: requests, encoding: .utf8)) ?? ""
+                try (old + "x").write(to: requests, atomically: true, encoding: .utf8)
+                try? await Task.sleep(for: .milliseconds(60))
+                if FileManager.default.fileExists(atPath: failure.path) { throw CursorClient.ClientError.signedOut }
+                return snapshot
+            }, readGrokBot: { throw GrokBotCache.CacheError.unavailable })
+        model.refreshNow()
+        for _ in 0..<100 where model.isFetchingGrokBot { try await Task.sleep(for: .milliseconds(10)) }
+        precondition(!FileManager.default.fileExists(atPath: requests.path), "No server request without opt-in")
+        settings.grokBotServerEnabled = true
+        precondition(Settings(defaults: defaults).grokBotServerEnabled)
+        model.refresh(source: .grokBot)
+        for _ in 0..<100 where model.isFetchingGrokBot { try await Task.sleep(for: .milliseconds(10)) }
+        precondition(model.grokBot == snapshot && model.grokBotUsesServer, "Server works without local Grok app/cache")
+        model.refresh(source: .grokBot)
+        for _ in 0..<100 where model.isFetchingGrokBot { try await Task.sleep(for: .milliseconds(10)) }
+        let firstRequests = try String(contentsOf: requests, encoding: .utf8)
+        precondition(firstRequests == "x", "Manual refresh floor applies")
+        for language in [AppLanguage.en, .lt] {
+            settings.language = language
+            try await render(AdditionalUsageCard(model: model, settings: settings, source: .grokBot).providerCard().frame(width: 350),
+                name: "grok-direct-\(language)", directory: output, scheme: .light)
+        }
+        try "account-B".write(to: sessionFile, atomically: true, encoding: .utf8)
+        try Data().write(to: failure)
+        model.refresh(source: .grokBot)
+        for _ in 0..<100 where model.isFetchingGrokBot { try await Task.sleep(for: .milliseconds(10)) }
+        precondition(model.grokBot == nil && model.grokBotServerError == .signedOut, "Account changes cannot retain previous quota")
+        model.refresh(source: .grokBot)
+        for _ in 0..<100 where model.isFetchingGrokBot { try await Task.sleep(for: .milliseconds(10)) }
+        let failedRequests = try String(contentsOf: requests, encoding: .utf8)
+        precondition(failedRequests == "xx", "401 does not bypass request backoff")
+        try await render(AdditionalUsageCard(model: model, settings: settings, source: .grokBot).providerCard().frame(width: 350),
+            name: "grok-direct-rejected", directory: output, scheme: .dark)
+        try FileManager.default.removeItem(at: failure)
+        try "account-C".write(to: sessionFile, atomically: true, encoding: .utf8)
+        model.refresh(source: .grokBot)
+        try await Task.sleep(for: .milliseconds(20))
+        settings.grokBotServerEnabled = false
+        model.refreshNow()
+        try await Task.sleep(for: .milliseconds(120))
+        precondition(!model.grokBotUsesServer && model.grokBot == nil && !model.isFetchingGrokBot,
+                     "Late server completion cannot overwrite local mode")
+        print("Direct Grok: opt-in, independent server refresh, throttling, account switch, 401 and cancellation passed")
     }
 
     @MainActor static func checkAdditionalUsage(settings: Settings, root: URL, output: URL,
@@ -311,9 +411,9 @@ import POMCore
         precondition(!FileManager.default.fileExists(atPath: sessionRead.path), "Disabled Cursor integration must not read session credentials")
         precondition(additional.grokBot?.capturedAt == grok.capturedAt, "Local polling must not make old readings fresh")
         settings.language = .en
-        try render(AdditionalUsageSections(model: additional, settings: settings).frame(width: 344),
+        try await render(AdditionalUsageSections(model: additional, settings: settings).frame(width: 344),
                    name: "cursor-grok-disabled-en", directory: output, scheme: .light)
-        try render(UsagePanelView(model: claude, codex: codex, settings: settings, additional: additional),
+        try await render(UsagePanelView(model: claude, codex: codex, settings: settings, additional: additional),
                    name: "dashboard-cursor-disabled", directory: output, scheme: .light, dashboard: true)
 
         settings.cursorMetricsEnabled = true
@@ -321,17 +421,17 @@ import POMCore
         for _ in 0..<100 where additional.cursor == nil { try await Task.sleep(for: .milliseconds(10)) }
         precondition(additional.cursor == cursor && !additional.isFetchingCursor)
         precondition(additional.menuWindows(for: .cursor).count == 2)
-        settings.setSource(.cursor, enabled: true)
-        settings.setSource(.grokBot, enabled: true)
+        settings.setPanelSource(.cursor, enabled: true)
+        settings.setPanelSource(.grokBot, enabled: true)
         let dashboard = UsagePanelView(model: claude, codex: codex, settings: settings, additional: additional)
         precondition(dashboard.orderedSources == [.cursor, .codex, .claude, .grokBot],
                      "The highest individual limit, including Cursor's second meter, must lead")
         for language in [AppLanguage.en, .lt] {
             settings.language = language
-            try render(AdditionalUsageSections(model: additional, settings: settings).frame(width: 344),
+            try await render(AdditionalUsageSections(model: additional, settings: settings).frame(width: 344),
                        name: "cursor-grok-\(language)", directory: output, scheme: language == .lt ? .dark : .light)
             for scheme in [ColorScheme.light, .dark] {
-                try render(UsagePanelView(model: claude, codex: codex, settings: settings, additional: additional),
+                try await render(UsagePanelView(model: claude, codex: codex, settings: settings, additional: additional),
                            name: "dashboard-\(language)-\(scheme)", directory: output, scheme: scheme, dashboard: true)
             }
             for source in [MenuBarSource.cursor, .grokBot] {
@@ -341,12 +441,45 @@ import POMCore
             }
         }
 
-        settings.setSource(.fable, enabled: true)
+        settings.setPanelSource(.fable, enabled: true)
         precondition(dashboard.orderedSources == [.cursor, .codex, .claude, .fable, .grokBot])
+        for style in [PanelStyle.cards, .compact] {
+            settings.panelStyle = style
+            for language in [AppLanguage.en, .lt] {
+                settings.language = language
+                for scheme in [ColorScheme.light, .dark] {
+                    settings.showRemaining = scheme == .dark
+                    try await render(UsagePanelView(model: claude, codex: codex, settings: settings, additional: additional, maximumHeight: 700),
+                        name: "layout-\(style)-\(language)-\(scheme)-five", directory: output, scheme: scheme)
+                    for source in MenuBarSource.allCases where source != .claude { settings.setPanelSource(source, enabled: false) }
+                    try await render(UsagePanelView(model: claude, codex: codex, settings: settings, additional: additional, maximumHeight: 700),
+                        name: "layout-\(style)-\(language)-\(scheme)-one", directory: output, scheme: scheme)
+                    for source in MenuBarSource.allCases { settings.setPanelSource(source, enabled: true) }
+                }
+            }
+        }
+        settings.panelOrder = .manual
+        let originalOrder = settings.panelSources
+        settings.movePanelSource(originalOrder.last!, by: -1)
+        precondition(dashboard.orderedSources == settings.panelSources)
+        precondition(settings.menuBarSources == [.claude, .codex], "Panel reordering cannot change menu indicators")
+        settings.movePanelSource(originalOrder.last!, by: 1)
+        settings.panelOrder = .automatic
+        let resizeController = NSHostingController(rootView: UsagePanelView(model: claude, codex: codex,
+            settings: settings, additional: additional, maximumHeight: 500))
+        resizeController.sizingOptions = [.preferredContentSize]
+        settings.panelStyle = .compact
+        precondition(resizeController.view.fittingSize.width == 420)
+        precondition(resizeController.view.fittingSize.height <= 500)
+        settings.panelStyle = .cards
+        try await Task.sleep(for: .milliseconds(50))
+        resizeController.view.layoutSubtreeIfNeeded()
+        precondition(resizeController.view.fittingSize.width == 744, "An open panel must resize when the mode changes")
+        settings.showRemaining = false
         for source in MenuBarSource.allCases {
             settings.togglePin(source)
             precondition(dashboard.orderedSources.first == source)
-            try render(dashboard, name: "bento-pinned-\(source.rawValue)", directory: output, scheme: .light, dashboard: true)
+            try await render(dashboard, name: "bento-pinned-\(source.rawValue)", directory: output, scheme: .light, dashboard: true)
             settings.togglePin(source)
         }
         let expiredSupport = root.appendingPathComponent("bento-expired-support")
@@ -366,7 +499,7 @@ import POMCore
         settings.togglePin(.grokBot)
         for language in [AppLanguage.en, .lt] {
             settings.language = language
-            try render(expiredDashboard, name: "bento-expired-all-\(language)", directory: output, scheme: .light, dashboard: true)
+            try await render(expiredDashboard, name: "bento-expired-all-\(language)", directory: output, scheme: .light, dashboard: true)
         }
         settings.togglePin(.grokBot)
         // Render every non-empty subset, including removal of the automatic leader.
@@ -374,12 +507,12 @@ import POMCore
             let selected = MenuBarSource.allCases.enumerated().compactMap { index, source in
                 mask & (1 << index) != 0 ? source : nil
             }
-            for source in selected { settings.setSource(source, enabled: true) }
+            for source in selected { settings.setPanelSource(source, enabled: true) }
             for source in MenuBarSource.allCases where !selected.contains(source) {
-                settings.setSource(source, enabled: false)
+                settings.setPanelSource(source, enabled: false)
             }
             precondition(Set(dashboard.orderedSources) == Set(selected), "Hidden services must leave the grid")
-            try render(dashboard, name: "bento-subset-\(mask)", directory: output, scheme: .light, dashboard: true)
+            try await render(dashboard, name: "bento-subset-\(mask)", directory: output, scheme: .light, dashboard: true)
         }
         precondition(UsageBentoOrder.sorted([.claude, .codex, .cursor], usage: [.claude: 0, .codex: 0]) == [.claude, .codex, .cursor],
                      "Known zero readings precede missing data; equal values keep a stable order")
@@ -411,11 +544,11 @@ import POMCore
         additional.refreshNow()
         for _ in 0..<100 where additional.grokBot != nil { try await Task.sleep(for: .milliseconds(10)) }
         precondition(additional.grokBot == nil, "Grok sign-out must clear the previous account's readings")
-        try render(AdditionalUsageSections(model: additional, settings: settings).frame(width: 344),
+        try await render(AdditionalUsageSections(model: additional, settings: settings).frame(width: 344),
                    name: "cursor-grok-unavailable", directory: output, scheme: .light)
         for language in [AppLanguage.en, .lt] {
             settings.language = language
-            try render(UsagePanelView(model: claude, codex: codex, settings: settings, additional: additional),
+            try await render(UsagePanelView(model: claude, codex: codex, settings: settings, additional: additional),
                        name: "dashboard-unavailable-\(language)", directory: output, scheme: .light, dashboard: true)
         }
 
@@ -460,22 +593,28 @@ import POMCore
         print("\(name): \(image.width) × \(image.height) px (Retina)")
     }
     @MainActor static func render<V: View>(_ view: V, name: String, directory: URL, scheme: ColorScheme,
-                                         dashboard: Bool = false) throws {
+                                         dashboard: Bool = false) async throws {
         let hosting = NSHostingView(rootView: view.environment(\.colorScheme, scheme).background(scheme == .dark ? Color.black : Color.white))
         hosting.frame = NSRect(origin: .zero, size: hosting.fittingSize)
+        let window = NSWindow(contentRect: hosting.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        window.contentView = hosting
+        window.setContentSize(hosting.fittingSize)
+        try await Task.sleep(for: .milliseconds(50))
+        window.setContentSize(hosting.fittingSize)
         hosting.layoutSubtreeIfNeeded()
+        hosting.displayIfNeeded()
         if dashboard {
             precondition(hosting.frame.width == 744, "Dashboard must have two readable columns")
             func containsScrollView(_ view: NSView) -> Bool {
                 view is NSScrollView || view.subviews.contains(where: containsScrollView)
             }
-            precondition(!containsScrollView(hosting), "All provider cards must fit without a scroll container")
+            precondition(hosting.frame.height <= 900, "Dashboard must stay inside its height budget")
         }
         guard let bitmap = hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds) else { throw NSError(domain: "render", code: 1) }
         hosting.cacheDisplay(in: hosting.bounds, to: bitmap)
         guard let data = bitmap.representation(using: .png, properties: [:]) else { throw NSError(domain: "png", code: 2) }
         try data.write(to: directory.appendingPathComponent(name + ".png"))
         print("\(name): \(Int(hosting.frame.width)) × \(Int(hosting.frame.height))")
-        precondition(hosting.frame.height < 740, "Popover too tall")
+        precondition(hosting.frame.height <= 1000, "Rendered view unexpectedly tall")
     }
 }

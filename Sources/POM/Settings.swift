@@ -27,7 +27,7 @@ enum AlertPreset: String, CaseIterable, Identifiable {
     }
 }
 
-/// Kurio įrankio skaičiai rodomi prie laikrodžio. Vietos ten tiek, kad telpa vienas.
+/// Paslaugų identifikatoriai suvestinei ir meniu juostai.
 enum MenuBarSource: String, CaseIterable, Identifiable {
     case claude
     case fable
@@ -47,6 +47,9 @@ enum MenuBarSource: String, CaseIterable, Identifiable {
         }
     }
 }
+
+enum PanelStyle: String { case cards, compact }
+enum PanelOrder: String { case automatic, manual }
 
 @MainActor
 final class Settings: ObservableObject {
@@ -77,6 +80,13 @@ final class Settings: ObservableObject {
     }
 
     @Published private(set) var menuBarSources: [MenuBarSource]
+    @Published private(set) var panelSources: [MenuBarSource]
+    @Published var panelStyle: PanelStyle {
+        didSet { defaults.set(panelStyle.rawValue, forKey: "panelStyle") }
+    }
+    @Published var panelOrder: PanelOrder {
+        didSet { defaults.set(panelOrder.rawValue, forKey: "panelOrder") }
+    }
     @Published private(set) var pinnedSource: MenuBarSource? {
         didSet {
             if let pinnedSource { defaults.set(pinnedSource.rawValue, forKey: "pinnedSource") }
@@ -88,6 +98,9 @@ final class Settings: ObservableObject {
     }
     @Published var recoveryNotifications: Bool {
         didSet { defaults.set(recoveryNotifications, forKey: "recoveryNotifications") }
+    }
+    @Published var grokBotServerEnabled: Bool {
+        didSet { defaults.set(grokBotServerEnabled, forKey: "grokBotServerEnabled") }
     }
     @Published var cursorMetricsEnabled: Bool {
         didSet { defaults.set(cursorMetricsEnabled, forKey: "cursorMetricsEnabled") }
@@ -111,11 +124,23 @@ final class Settings: ObservableObject {
         guard !selected.isEmpty else { return }
         menuBarSources = MenuBarSource.allCases.filter { selected.contains($0) }
         defaults.set(menuBarSources.map(\.rawValue), forKey: "menuBarSources")
-        if pinnedSource == source && !enabled { pinnedSource = nil }
+    }
+
+    func setPanelSource(_ source: MenuBarSource, enabled: Bool) {
+        if enabled && !panelSources.contains(source) { panelSources.append(source) }
+        if !enabled && panelSources.count > 1 { panelSources.removeAll { $0 == source } }
+        defaults.set(panelSources.map(\.rawValue), forKey: "panelSources")
+        if !panelSources.contains(source) && pinnedSource == source { pinnedSource = nil }
+    }
+
+    func movePanelSource(_ source: MenuBarSource, by offset: Int) {
+        guard let index = panelSources.firstIndex(of: source), panelSources.indices.contains(index + offset) else { return }
+        panelSources.swapAt(index, index + offset)
+        defaults.set(panelSources.map(\.rawValue), forKey: "panelSources")
     }
 
     func togglePin(_ source: MenuBarSource) {
-        guard menuBarSources.contains(source) else { return }
+        guard panelSources.contains(source) else { return }
         pinnedSource = pinnedSource == source ? nil : source
     }
 
@@ -163,12 +188,22 @@ final class Settings: ObservableObject {
             AlertPreset(rawValue: defaults.string(forKey: Key.alertPreset) ?? "") ?? .standard
         let oldSource = MenuBarSource(rawValue: defaults.string(forKey: Key.menuBarSource) ?? "") ?? .claude
         let sources = defaults.stringArray(forKey: "menuBarSources")?.compactMap(MenuBarSource.init(rawValue:)) ?? [oldSource]
-        menuBarSources = sources.isEmpty ? [.claude] : MenuBarSource.allCases.filter { sources.contains($0) }
+        let initialMenu = sources.isEmpty ? [.claude] : MenuBarSource.allCases.filter { sources.contains($0) }
+        menuBarSources = initialMenu
+        let storedPanel = defaults.stringArray(forKey: "panelSources")?.compactMap(MenuBarSource.init(rawValue:))
+        var seen = Set<MenuBarSource>()
+        let uniquePanel = storedPanel?.filter { seen.insert($0).inserted } ?? initialMenu
+        let initialPanel = uniquePanel.isEmpty ? initialMenu : uniquePanel
+        panelSources = initialPanel
+        defaults.set(initialPanel.map(\.rawValue), forKey: "panelSources")
+        panelStyle = PanelStyle(rawValue: defaults.string(forKey: "panelStyle") ?? "") ?? .cards
+        panelOrder = PanelOrder(rawValue: defaults.string(forKey: "panelOrder") ?? "") ?? .automatic
         let storedPin = defaults.string(forKey: "pinnedSource").flatMap(MenuBarSource.init(rawValue:))
-        pinnedSource = storedPin.flatMap { sources.contains($0) ? $0 : nil }
+        pinnedSource = storedPin.flatMap { initialPanel.contains($0) ? $0 : nil }
         language = AppLanguage(rawValue: defaults.string(forKey: "language") ?? "") ?? .system
         recoveryNotifications = defaults.bool(forKey: "recoveryNotifications")
         cursorMetricsEnabled = defaults.bool(forKey: "cursorMetricsEnabled")
+        grokBotServerEnabled = defaults.bool(forKey: "grokBotServerEnabled")
         launchAtLogin = loginItem.isEnabled
     }
 }

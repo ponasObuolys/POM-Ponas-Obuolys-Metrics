@@ -94,21 +94,43 @@ final class HistoryService: ObservableObject {
     }
 
     /// Uses summaries already in memory; no transcript scans or CLI/network calls.
-    func exportReportData(now: Date = Date()) throws -> Data {
+    func exportReportData(days: Int = 30, now: Date = Date()) throws -> Data {
+        try exportReport(days: days, now: now).encoded()
+    }
+
+    func exportCSVData(days: Int = 30, now: Date = Date()) throws -> Data {
+        let report = try exportReport(days: days, now: now)
+        let formatter = ISO8601DateFormatter()
+        var lines = ["source,day,tokens,updated_at,collection_status"]
+        for entry in report.entries {
+            for day in entry.snapshot.days.sorted(by: { $0.day < $1.day }) {
+                lines.append([entry.source.rawValue, day.day, String(day.tokens),
+                              formatter.string(from: entry.snapshot.updatedAt), entry.collectionStatus.rawValue].joined(separator: ","))
+            }
+        }
+        return Data((lines.joined(separator: "\r\n") + "\r\n").utf8)
+    }
+
+    private func exportReport(days: Int, now: Date) throws -> UsageHistoryReport {
+        precondition(days == 7 || days == 30)
+        let selectedKeys = Set(UsageDay.keys(days: days, now: now))
+        func filtered(_ snapshot: TokenUsageSnapshot) -> TokenUsageSnapshot {
+            TokenUsageSnapshot(days: snapshot.days.filter { selectedKeys.contains($0.day) }, updatedAt: snapshot.updatedAt)
+        }
         var entries: [UsageHistoryReport.Entry] = []
         if let claude {
             entries.append(.init(source: .claudeCodeLocal,
                                  collectionStatus: importing || skippedLines > 0 ? .partial
                                      : (claudeUnavailable ? .refreshFailed : .complete),
-                                 snapshot: claude))
+                                 snapshot: filtered(claude)))
         }
         if let codex {
             entries.append(.init(source: .codexAccount,
                                  collectionStatus: fetchingCodex ? .partial
                                      : (codexUnavailable ? .refreshFailed : .complete),
-                                 snapshot: codex))
+                                 snapshot: filtered(codex)))
         }
-        return try UsageHistoryReport(generatedAt: now, entries: entries).encoded()
+        return try UsageHistoryReport(generatedAt: now, entries: entries)
     }
 
     func refresh() {

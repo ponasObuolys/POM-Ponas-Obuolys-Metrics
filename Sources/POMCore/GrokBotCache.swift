@@ -31,6 +31,7 @@ public struct GrokBotCache: Sendable {
         let isSandTrial: Bool
         let hasNonZeroIncludedLimit: Bool
         let grokPlanLabel: String?
+        let unifiedPlanName: String?
         let onDemand: Spend?
     }
     private struct Spend: Decodable {
@@ -77,7 +78,7 @@ public struct GrokBotCache: Sendable {
             }
             onDemand = .init(usedCents: spend.usedCents, limitCents: spend.limitCents)
         } else { onDemand = nil }
-        let plan = usage.grokPlanLabel.flatMap { $0.isEmpty || $0.count > 100 ? nil : $0 }
+        let plan = SubscriptionPlan.providedName(usage.unifiedPlanName) ?? SubscriptionPlan.providedName(usage.grokPlanLabel)
         return .init(meters: [.init(kind: .weekly, usedPercentage: usage.percentUsed, resetsAt: reset)],
                      capturedAt: Date(timeIntervalSince1970: reading.readAtMs / 1000),
                      planName: plan, onDemand: onDemand)

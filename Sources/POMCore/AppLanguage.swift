@@ -39,4 +39,18 @@ public enum AppLanguage: String, CaseIterable, Identifiable, Sendable {
         formatter.setLocalizedDateFormatFromTemplate(Calendar.current.isDate(date, inSameDayAs: now) ? "j:mm" : "MMM d j:mm")
         return formatter.string(from: date)
     }
+    public func resetTime(_ date: Date, now: Date, timeZone: TimeZone = .current) -> String {
+        var calendar = Calendar(identifier: .gregorian); calendar.timeZone = timeZone
+        let formatter = DateFormatter(); formatter.locale = locale; formatter.timeZone = timeZone
+        let sameDay = calendar.isDate(date, inSameDayAs: now)
+        formatter.setLocalizedDateFormatFromTemplate(sameDay ? "j:mm" : "MMM d j:mm")
+        return (sameDay ? text("šiandien ", "today ") : "") + formatter.string(from: date)
+    }
+
+    public func fullResetTime(_ date: Date, timeZone: TimeZone = .current) -> String {
+        let formatter = DateFormatter(); formatter.locale = locale; formatter.timeZone = timeZone
+        formatter.setLocalizedDateFormatFromTemplate("yyyy MMM d j:mm:ss zzz")
+        return formatter.string(from: date)
+    }
+
 }

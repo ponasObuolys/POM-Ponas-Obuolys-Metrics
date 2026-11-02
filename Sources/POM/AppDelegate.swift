@@ -222,6 +222,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        if let controller = popover.contentViewController as? NSHostingController<UsagePanelView> {
+            controller.rootView = UsagePanelView(model: model, codex: codex, settings: settings,
+                additional: additional, updater: updater,
+                maximumHeight: max(200, (button.window?.screen?.visibleFrame.height ?? 900) - 48),
+                showHistory: { [weak self] in self?.showHistory() })
+        }
         model.refreshNow()
         codex.refreshNow()
         additional.refreshNow()

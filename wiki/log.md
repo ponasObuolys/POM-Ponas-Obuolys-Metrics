@@ -121,3 +121,66 @@ Universalus 2.3.0 paketas įdiegtas į `/Applications/POM.app`, patikrinti abu
 versijos laukai ir programos parašas. Paleistos programos atnaujinimo lange
 gyvai perskaityta „POM 2.3.0“. Ankstesnė programa ir nustatymai išsaugoti
 `dist/backups/`.
+
+## 2026-11-03 · Suvestinė ir istorija
+
+Įgyvendinti vartotojo patvirtinti septyni patobulinimai. Pridėta nustatymų migracija,
+kompaktiškas režimas, rankinė tvarka, būsenų veiksmai, vietinis atsistatymo laikas,
+užbaigtų dienų statistika ir laikotarpio JSON/CSV eksportas. Leidimas nepublikuotas.
+Šaltinis: [[wiki/synthesis/usage-interface]].
+
+## 2026-11-03 · Grok Bot serverio režimas
+
+Pridėtas tiesioginis savaitės limito gavimas per esamą Cursor prisijungimą,
+nes vietinei suvestinei atnaujinti reikėjo veikiančios Grok Bot programos.
+Gyvas serveris dabartinę Cursor sesiją atmetė (401); tai atskirta nuo sintetinės
+kliento patikros. Žr. [[wiki/synthesis/cursor-grok-metrics]].
+
+## 2026-11-03 · Planų pavadinimų patikra
+
+Oficialiuose šaltiniuose patikrinti Claude, ChatGPT, Cursor ir Grok Bot vardai.
+Pašalinti išgalvojami seni daugikliai; Claude Max 20x/5x identifikatoriai rodomi
+kaip Ultra/Max. Išsaugomi būsimi šaltinio vardai ir bendro Grok plano vardas.
+Į leidimo tvarką įtraukta oficialių vardų patikra; žr. `docs/PLAN-NAMES.md`.
+
+Planų pataisoms praėjo 400 pagrindinių patikrų ir SwiftUI integracijų rinkinys.
+Atnaujintos nuotraukos. Universalus paketas įdiegtas į `/Applications/POM.app`
+ir paleistas, patikrinus parašą bei vykdomojo failo atitikimą naujam paketui.
+
+## 2026-11-03 · Cursor užšifruotos sesijos pataisymas
+
+Ankstesnė 401 interpretacija buvo klaidinga: POM siuntė Cursor safeStorage
+apvalkalą vietoj iššifruotos sesijos. Pridėtas macOS v10 dekodavimas per tikslų
+Cursor raktinės įrašą, atskira vietinės saugyklos klaida ir apsauga nuo kartotinių
+leidimo dialogų po atsisakymo. Tikros serverio užklausos 00:34 Vilniaus laiku
+sėkmingai grąžino Grok Bot (1 limitas) ir Cursor (2 limitai). Sesijos neatnaujinome,
+prisijungimo duomenys nebuvo spausdinami. 411 branduolio patikrų praėjo.
+
+SwiftUI regresinės patikros praėjo. Universalus paketas įdiegtas į
+`/Applications/POM.app`, parašas patikrintas, vykdomojo failo SHA-256 sutampa
+su sukurtu paketu, procesas paleistas. Po sėkmingų tikrų užklausų įjungtas
+Grok serverio režimas. Atsarginė kopija:
+`dist/backups/POM-before-cursor-storage-6f7f62aa.app`.
+Gyvos sąsajos patikros per kompiuterio valdymo įrankį nepavyko atlikti dėl
+timeout; sėkmingos serverio užklausos tikrintos atskiru to paties POMCore klientu.
+
+## 2026-11-03 · Automatinis Grok gavimas uždarius programas
+
+Cursor uždarytas įprastu Quit, Grok Bot jau neveikė. Diagnostinis procesas
+naudojo nepakeistus `AdditionalUsageViewModel`, `Settings`, tikrą Cursor sesiją
+ir serverio klientą. Kviestas tik `start()`, ne rankinis refresh; intervalai
+nekeisti. Sėkmingi gavimai: 00:42:45 ir 00:47:46 Europe/Vilnius (301 s).
+Kas sekundę tikrinta, kad Cursor ir Grok Bot procesai neveikia. Patikra praėjo.
+Įdiegtas POM liko paleistas, jo binaro SHA-256 sutapo su dist paketu. Tai
+realaus atnaujinimo modulio patikra atskirame procese, ne gyvo POM lango
+stebėjimas. Diagnostikos failai: `.build/grok-auto-check.swift`,
+`.build/grok-auto-check.log` (be prisijungimo duomenų).
+
+## 2026-11-03 · POM 2.4.0 vietinis įdiegimas
+
+Versija pakelta iš 2.3.1 į 2.4.0; atnaujinti LT/EN README ir pridėtas
+`docs/releases/2.4.0.md`. Universalus paketas įdiegtas į `/Applications/POM.app`
+ir paleistas, versija bei parašas patikrinti, binaras sutampa su dist paketu.
+Patikros: 411 branduolio, SwiftUI, 24 Companion duomenų patikros, 7/30 dienų
+JSON importas, 5 bridge ir 9 Apple preflight testai. Viešas leidimas ir žyma
+nekuriami; vartotojas patvirtino šių pakeitimų commit ir push.

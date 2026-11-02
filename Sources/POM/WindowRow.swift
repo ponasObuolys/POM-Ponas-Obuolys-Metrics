@@ -9,6 +9,7 @@ struct WindowRow: View {
     let now: Date
     var language: AppLanguage = .system
     var prominent = false
+    var showRemaining = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -20,7 +21,9 @@ struct WindowRow: View {
 
                 Spacer()
 
-                Text(window.didReset ? "–" : "\(Int(window.usedPercentage.rounded()))")
+                Text(showRemaining ? language.text("Liko", "Left") : language.text("Sunaudota", "Used"))
+                    .font(.system(size: 10)).foregroundStyle(.secondary).fixedSize()
+                Text(window.didReset ? "–" : "\(Int(window.percentage(showRemaining: showRemaining).rounded()))")
                     .font(.system(size: prominent ? 34 : 20, weight: .semibold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(window.didReset ? Color.secondary : Theme.color(for: window.level))
@@ -32,27 +35,34 @@ struct WindowRow: View {
 
             bar
 
-            HStack(spacing: 6) {
-                if !window.didReset {
-                    Text(language.text("liko \(Int(window.remainingPercentage.rounded())) %", "\(Int(window.remainingPercentage.rounded()))% left"))
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 6) {
+                    Text(resetText)
+                    if window.resetsAt != nil && !window.didReset { Text("·") }
+                    if let date = window.resetsAt, !window.didReset { Text(language.resetTime(date, now: now)) }
+                }.fixedSize(horizontal: true, vertical: false)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(resetText)
+                    if let date = window.resetsAt, !window.didReset { Text(language.resetTime(date, now: now)) }
                 }
-                Spacer()
-                Text(resetText)
             }
             .font(.system(size: 11))
             .foregroundStyle(.secondary)
+            .help(window.resetsAt.map { language.fullResetTime($0) } ?? resetText)
         }
         .animation(reduceMotion ? nil : .spring(response: 0.5, dampingFraction: 0.85), value: window.usedPercentage)
     }
+
+    private var displayFraction: Double { window.fillFraction(showRemaining: showRemaining) }
 
     private var bar: some View {
         GeometryReader { geometry in
             ZStack(alignment: .leading) {
                 Capsule().fill(Theme.track)
-                if !window.didReset && window.fraction > 0 {
+                if !window.didReset && displayFraction > 0 {
                     Capsule()
                         .fill(Theme.gradient(for: window.level))
-                        .frame(width: max(9, geometry.size.width * window.fraction))
+                        .frame(width: max(9, geometry.size.width * displayFraction))
                         .shadow(
                             color: Theme.color(for: window.level).opacity(0.35), radius: 4, y: 1)
                 }
@@ -76,6 +86,8 @@ struct SectionHeader: View {
     let detail: String
     var plan: String? = nil
     var pinSettings: Settings? = nil
+    @Environment(\.providerStatus) private var status
+    @State private var showingStatus = false
 
     var body: some View {
         HStack(spacing: 8) {
@@ -101,13 +113,18 @@ struct SectionHeader: View {
 
             Spacer()
 
-            Circle()
-                .fill(Theme.freshnessColor(freshness))
-                .frame(width: 6, height: 6)
-            Text(detail)
-                .font(.system(size: 10))
-                .foregroundStyle(.tertiary)
-            if let pinSettings { ProviderPinButton(source: source, settings: pinSettings) }
+            Button { showingStatus.toggle() } label: {
+                HStack(spacing: 4) {
+                    if status.busy { ProgressView().controlSize(.mini) }
+                    else { Circle().fill(Theme.freshnessColor(freshness)).frame(width: 6, height: 6) }
+                    Text(detail.isEmpty ? "—" : detail).font(.system(size: 10)).foregroundStyle(.tertiary)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(status.language.text("Duomenų būsena", "Data status"))
+            .popover(isPresented: $showingStatus) { ProviderStatusView(status: status, freshness: freshness) }
+            if let pinSettings, pinSettings.panelOrder == .automatic { ProviderPinButton(source: source, settings: pinSettings) }
         }
     }
 }

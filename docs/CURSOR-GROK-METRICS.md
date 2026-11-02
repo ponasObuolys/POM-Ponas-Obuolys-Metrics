@@ -39,7 +39,49 @@ datą ir papildomą naudojimą. Prisijungimo raktas nebuvo rodomas ar išsaugota
 Integracija skirta macOS **Grok Bot** programai. Ji neskaito grok.com pokalbių
 ir nėra atskira xAI API kreditų integracija.
 
-POM tikrina `~/Library/Application Support/Grok Bot/sand-client-persistence`
+### Tiesioginis atnaujinimas (darbinis kodas, 2026-11-03)
+
+**Grok Bot iš serverio (Cursor paskyra)** nustatymas arba kortelės mygtukas įjungia
+atskirą `GetSandUsageStatus` užklausą į tą patį Cursor DashboardService serverį.
+Naudojamas esamas Cursor prisijungimas, nepriklausomai nuo Cursor metrikų jungiklio.
+Grok Bot programa gali likti uždaryta. Tai **Cursor paskyros** Grok Bot limitas;
+jeigu Grok Bot prisijungta kita paskyra, jos vietinė suvestinė su juo nemaišoma.
+
+Užklausą naudoja pati įdiegta Grok Bot programa. Rodomas serverio `usagePercent`,
+ne Cursor Auto/API procento kopija. Nauji bendro plano ir senieji atskiri limitai
+lieka atskiri serverio sprendimai. `isUnified` atveju plano vardas imamas iš
+`cursorPlanName`, kitu atveju — iš `grokPlanLabel`. Protobuf datos skaitomos kaip
+ISO 8601. Trūkstamas procentas, pasibaigęs bandomasis planas ir bendras įmonės
+limitas nelaikomi individualiu nuliniu limitu.
+
+Užklausos vyksta kas 5 min., rankinės — ne dažniau nei kas 30 sek.; nesėkmės
+atveju intervalas didinamas iki valandos. Paskyros/sesijos pasikeitimas pašalina
+seną rodmenį. Išjungimas atšaukia užklausą ir neleidžia pavėluotam rezultatui
+pakeisti vietinės suvestinės. Rakto POM neišsaugo ir nerodo. Papildomos Cursor
+mėnesio išlaidos nekopijuojamos į bendro plano išankstinių kreditų rodmenį.
+
+2026-11-03 rastas ir ištaisytas sesijos nuskaitymo defektas: naujesnis Cursor
+`cursorAuth/accessToken` saugo `cursor-safe-storage:v1:` apvalkale. Ankstesnis
+POM siuntė šifruotą tekstą kaip Bearer raktą; HTTP 401 nereiškė, kad vartotojui
+reikia prisijungti iš naujo. POM dabar iššifruoja macOS `v10` apvalkalą su
+`Cursor Safe Storage` / `Cursor Key` raktinės įrašu. Prieigos macOS gali paprašyti;
+atsisakymas įsimenamas iki POM paleidimo iš naujo, kad foninis laikmatis nekartotų
+dialogų. Raktinės įrašas nekeičiamas, paslaptys nerašomos į failus ar žurnalus.
+Neatpažinta saugojimo versija ir neperskaitytas raktas yra vietinė klaida, ne 401.
+
+Tikra patikra po pataisymo sėkmingai gavo vieną Grok Bot ir du Cursor limitus
+2026-11-03 00:34 Vilniaus laiku. Patikrinti sintetiniai šifruotos SQLite sesijos,
+seno formato, netinkamos versijos, blogo rakto ir neprieinamos raktinės atvejai.
+Kriptografijos formatas atitinka [Chromium macOS OSCrypt](https://github.com/chromium/chromium/blob/130.0.6723.0/components/os_crypt/sync/os_crypt_mac.mm).
+
+
+![Tiesioginio Grok Bot režimo pavyzdiniai rodmenys](images/grok-direct-lt.png)
+
+Nuotraukoje — sintetiniai testų duomenys.
+
+### Vietinė suvestinė
+
+Išjungus tiesioginį režimą, POM tikrina `~/Library/Application Support/Grok Bot/sand-client-persistence`
 kas 30 sekundžių. Skaitomi tik du nedideli failai: aktyvios paskyros žyma
 `sand.client.slice.client-meta.account-slot` ir tos paskyros
 `sand.client.slice.account.<account>.weekly-usage.cache` suvestinė.
@@ -56,8 +98,7 @@ atsistatymo laikmatis savaime nepaverčia naudojimo nuliu.
 
 Grok Bot ir Cursor gali dalintis bendru planu. POM rodo kiekvienos programos
 reikšmes, jų nesumuoja. Paslaugos pasirenkamos per **Paslaugos** lango viršuje
-arba **Nustatymai → Rodomos paslaugos**. Tie patys jungikliai valdo korteles
-ir meniu juostos indikatorius. Šie šaltiniai nepridedami prie Claude/Codex tokenų istorijos
+arba **Nustatymai → Rodomos paslaugos**. Suvestinės kortelės ir meniu juostos indikatoriai pasirenkami atskirai. Šie šaltiniai nepridedami prie Claude/Codex tokenų istorijos
 ir nesiunčia atskirų pranešimų apie limitus.
 
 ## Piktogramos

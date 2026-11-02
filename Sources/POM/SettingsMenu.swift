@@ -15,7 +15,15 @@ struct SettingsMenu: View {
             Menu(settings.text("Rodomos paslaugos", "Visible services")) {
                 ProviderVisibilityOptions(codex: codex, settings: settings, additional: additional)
             }
-            Toggle(settings.text("Ikonoje rodyti, kiek liko", "Show remaining usage in menu bar"), isOn: $settings.showRemaining)
+            Toggle(settings.text("Rodyti, kiek liko", "Show remaining usage"), isOn: $settings.showRemaining)
+            Picker(settings.text("Vaizdas", "Layout"), selection: $settings.panelStyle) {
+                Text(settings.text("Kortelės", "Cards")).tag(PanelStyle.cards)
+                Text(settings.text("Kompaktiškas", "Compact")).tag(PanelStyle.compact)
+            }
+            Picker(settings.text("Kortelių tvarka", "Card order"), selection: $settings.panelOrder) {
+                Text(settings.text("Pagal sunaudojimą", "By usage")).tag(PanelOrder.automatic)
+                Text(settings.text("Mano tvarka", "My order")).tag(PanelOrder.manual)
+            }
             Divider()
             Toggle(settings.text("Perspėti apie besibaigiantį limitą", "Warn when a limit is running low"), isOn: $settings.notificationsEnabled)
             Picker(settings.text("Perspėti", "Alert thresholds"), selection: $settings.alertPreset) {
@@ -30,6 +38,7 @@ struct SettingsMenu: View {
             }
             Toggle(settings.text("Klausti serverio, kai duomenys pasenę", "Use server fallback for stale data"), isOn: $settings.serverFallbackEnabled)
             Toggle(settings.text("Cursor metrikos (esamu prisijungimu)", "Cursor metrics (existing sign-in)"), isOn: $settings.cursorMetricsEnabled)
+            Toggle(settings.text("Grok Bot iš serverio (Cursor paskyra)", "Grok Bot from server (Cursor account)"), isOn: $settings.grokBotServerEnabled)
             Button(settings.text("Prisijungti prie Claude…", "Sign in to Claude…")) {
                 Task { await model.signInToClaude() }
             }
@@ -68,25 +77,43 @@ struct SettingsMenu: View {
 
 }
 
-/// Tie patys jungikliai lango viršuje ir nustatymuose valdo korteles bei indikatorius.
+/// Nepriklausomi suvestinės ir meniu juostos pasirinkimai abiejuose meniu.
 struct ProviderVisibilityOptions: View {
     @ObservedObject var codex: CodexViewModel
     @ObservedObject var settings: Settings
     @ObservedObject var additional: AdditionalUsageViewModel
 
     var body: some View {
+        Menu(settings.text("Suvestinėje", "In dashboard")) { choices(panel: true) }
+        Menu(settings.text("Meniu juostoje", "In menu bar")) { choices(panel: false) }
+        if settings.panelOrder == .manual {
+            Menu(settings.text("Keisti tvarką", "Reorder")) {
+                ForEach(Array(settings.panelSources.enumerated()), id: \.element) { index, source in
+                    Menu(source.title) {
+                        Button(settings.text("Aukštyn", "Move up")) { settings.movePanelSource(source, by: -1) }
+                            .disabled(index == 0)
+                        Button(settings.text("Žemyn", "Move down")) { settings.movePanelSource(source, by: 1) }
+                            .disabled(index == settings.panelSources.count - 1)
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private func choices(panel: Bool) -> some View {
+        let selected = panel ? settings.panelSources : settings.menuBarSources
         ForEach(MenuBarSource.allCases) { source in
             Toggle(isOn: Binding(
-                get: { settings.menuBarSources.contains(source) },
-                set: { settings.setSource(source, enabled: $0) })) {
-                    Label {
-                        Text(source.title)
-                    } icon: {
+                get: { selected.contains(source) },
+                set: { enabled in
+                    if panel { settings.setPanelSource(source, enabled: enabled) }
+                    else { settings.setSource(source, enabled: enabled) }
+                })) {
+                    Label { Text(source.title) } icon: {
                         ProviderMarkView(source: source).frame(width: 16, height: 16)
                     }
                 }
-                .disabled(settings.menuBarSources == [source]
-                          || (!isAvailable(source) && !settings.menuBarSources.contains(source)))
+                .disabled(selected == [source] || (!isAvailable(source) && !selected.contains(source)))
         }
     }
 
@@ -95,7 +122,7 @@ struct ProviderVisibilityOptions: View {
         case .claude, .fable: return true
         case .codex: return codex.isPresent
         case .cursor: return additional.cursorPresent && settings.cursorMetricsEnabled
-        case .grokBot: return additional.grokBotPresent
+        case .grokBot: return additional.grokBotPresent || (settings.grokBotServerEnabled && additional.cursorPresent)
         }
     }
 }

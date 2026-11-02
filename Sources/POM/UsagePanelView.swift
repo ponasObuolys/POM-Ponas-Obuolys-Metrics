@@ -1,3 +1,4 @@
+import AppKit
 import POMCore
 import SwiftUI
 
@@ -9,14 +10,16 @@ struct UsagePanelView: View {
     @ObservedObject var additional: AdditionalUsageViewModel
     var updater: UpdateService? = nil
     var showHistory: () -> Void = {}
+    var maximumHeight: CGFloat = 900
     @State private var showingBridgeConnection = false
 
     init(model: UsageViewModel, codex: CodexViewModel, settings: Settings,
          additional: AdditionalUsageViewModel? = nil, updater: UpdateService? = nil,
-         showHistory: @escaping () -> Void = {}) {
+         maximumHeight: CGFloat = 900, showHistory: @escaping () -> Void = {}) {
         self.model = model; self.codex = codex; self.settings = settings
         self.additional = additional ?? AdditionalUsageViewModel(settings: settings)
         self.updater = updater; self.showHistory = showHistory
+        self.maximumHeight = maximumHeight
     }
 
     private var usageScores: [MenuBarSource: Double] {
@@ -35,31 +38,72 @@ struct UsagePanelView: View {
     }
 
     var orderedSources: [MenuBarSource] {
-        UsageBentoOrder.sorted(settings.menuBarSources, usage: usageScores, pinned: settings.pinnedSource)
+        settings.panelOrder == .manual ? settings.panelSources
+            : UsageBentoOrder.sorted(settings.panelSources, usage: usageScores, pinned: settings.pinnedSource)
     }
 
     var body: some View {
         VStack(spacing: 0) {
             header
             separator
-            UsageBentoGrid(sources: orderedSources) { source, featured, wide in
-                VStack(alignment: .leading, spacing: 10) {
-                    if featured {
-                        Text(settings.pinnedSource == source
-                             ? settings.text("Prisegta", "Pinned")
-                             : settings.text("Pagal sunaudotą limito procentą", "By limit used (%)"))
-                            .font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary)
-                    }
-                    providerContent(source, featured: featured, wide: wide)
-                }
-            }
-            .padding(16)
+            ContentHeightScrollView(maximumHeight: max(100, maximumHeight - 100)) { cardsContent }
 
             separator
             footer
         }
-        .frame(width: 744)
+        .frame(width: settings.panelStyle == .compact ? 420 : 744)
         .environment(\.locale, settings.locale)
+    }
+
+    @ViewBuilder private var cardsContent: some View {
+        if settings.panelStyle == .compact {
+            VStack(spacing: 12) {
+                ForEach(orderedSources) { source in
+                    providerContent(source, featured: false, wide: false)
+                        .providerCard().environment(\.providerStatus, status(for: source))
+                }
+            }.padding(16)
+        } else {
+            UsageBentoGrid(sources: orderedSources) { source, featured, wide in
+                VStack(alignment: .leading, spacing: 10) {
+                    if featured {
+                        Text(settings.panelOrder == .manual ? settings.text("Mano tvarka", "My order")
+                             : settings.pinnedSource == source ? settings.text("Prisegta", "Pinned")
+                             : settings.text("Pagal sunaudotą limito procentą", "By limit used (%)"))
+                            .font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary)
+                    }
+                    providerContent(source, featured: featured, wide: wide)
+                }.environment(\.providerStatus, status(for: source))
+            }.padding(16)
+        }
+    }
+
+    private func status(for source: MenuBarSource) -> ProviderStatus {
+        switch source {
+        case .claude, .fable:
+            return ProviderStatus(language: settings.language,
+                capturedAt: source == .fable ? model.fableSnapshot?.capturedAt : model.snapshot?.capturedAt,
+                source: claudeSourceText(source == .fable ? model.fableSnapshot?.source : model.snapshot?.source), note: model.claudeNote ?? model.serverNote,
+                busy: model.isFetchingClaude || model.isFetching || model.isSigningIn,
+                refresh: { model.requestServerRefresh() },
+                signIn: model.canReconnectClaude && model.canSignInToClaude ? { Task { await model.signInToClaude() } } : nil)
+        case .codex:
+            return ProviderStatus(language: settings.language, capturedAt: codex.snapshot?.capturedAt,
+                source: settings.text("Codex paskyra · vietinis CLI", "Codex account · local CLI"), note: codex.note,
+                busy: codex.isFetching || codex.isSigningIn, refresh: { codex.requestRefresh() },
+                signIn: (codex.isSignedOut || codex.canReconnect) && codex.canSignIn ? { Task { await codex.signInToChatGPT() } } : nil)
+        case .cursor, .grokBot:
+            return additional.status(for: source, language: settings.language)
+        }
+    }
+
+    private func claudeSourceText(_ source: UsageSnapshot.Source?) -> String {
+        switch source {
+        case .statusline: return settings.text("Claude Code būsenos juosta", "Claude Code status line")
+        case .claudeCLI: return "Claude Code CLI"
+        case .server: return settings.text("Claude serveris", "Claude server")
+        case nil: return settings.text("Šaltinis dar neprieinamas", "Source not available yet")
+        }
     }
 
     @ViewBuilder
@@ -122,14 +166,16 @@ struct UsagePanelView: View {
                 detail: model.hasData ? model.ageShort : "", plan: model.planTitle, pinSettings: settings)
 
             if model.hasData {
-                HStack(alignment: .top, spacing: wide ? 20 : 12) {
+                let layout = !wide ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
+                    : AnyLayout(HStackLayout(alignment: .top, spacing: wide ? 20 : 12))
+                layout {
                     if model.hasFiveHourLimit {
                         WindowRow(title: settings.language.windowTitle(minutes: 300), window: model.fiveHour,
-                                  now: model.now, language: settings.language, prominent: featured)
+                                  now: model.now, language: settings.language, prominent: featured, showRemaining: settings.showRemaining)
                             .frame(maxWidth: .infinity)
                     }
                     WindowRow(title: settings.text("Visi modeliai · 7 dienų", "All models · 7-day"), window: model.sevenDay,
-                              now: model.now, language: settings.language, prominent: featured)
+                              now: model.now, language: settings.language, prominent: featured, showRemaining: settings.showRemaining)
                         .frame(maxWidth: .infinity)
                 }
                 if !model.isBridgeConnected {
@@ -178,7 +224,7 @@ struct UsagePanelView: View {
                           detail: model.fable == nil ? "" : model.fableAge, plan: model.planTitle, pinSettings: settings)
             if let fable = model.fable {
                 WindowRow(title: settings.text("Fable · 7 dienų", "Fable · 7-day"), window: fable,
-                          now: model.now, language: settings.language, prominent: featured)
+                          now: model.now, language: settings.language, prominent: featured, showRemaining: settings.showRemaining)
             } else {
                 note(settings.text("Claude nepateikė atskiro Fable limito.", "Claude has not reported a separate Fable limit."))
             }
@@ -256,7 +302,7 @@ struct UsagePanelView: View {
             }
 
             if codex.hasData {
-                WindowRow(title: codex.title, window: codex.window, now: codex.now, language: settings.language, prominent: featured)
+                WindowRow(title: codex.title, window: codex.window, now: codex.now, language: settings.language, prominent: featured, showRemaining: settings.showRemaining)
             } else if !codex.isSignedOut {
                 note(settings.text("Skaičių dar nėra. POM klausia Codex kas kelias minutes.", "No readings yet. POM checks Codex every few minutes."))
             }
@@ -325,17 +371,22 @@ struct UsagePanelView: View {
             .help(settings.text("Paremti POM kūrimą per Stripe", "Support POM development via Stripe"))
 
             Button(action: refreshEverything) {
-                Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 12, weight: .medium))
+                if refreshing { ProgressView().controlSize(.mini) }
+                else { Image(systemName: "arrow.clockwise").font(.system(size: 12, weight: .medium)) }
             }
             .buttonStyle(IconButtonStyle())
             .help(settings.text("Atnaujinti dabar", "Refresh now"))
+            .disabled(refreshing)
 
             SettingsMenu(model: model, codex: codex, settings: settings, additional: additional, updater: updater)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .focusEffectDisabled()
+    }
+
+    private var refreshing: Bool {
+        model.isFetchingClaude || model.isFetching || codex.isFetching || additional.isFetchingCursor || additional.isFetchingGrokBot
     }
 
     private func refreshEverything() {

@@ -37,6 +37,8 @@ public struct DisplayWindow: Equatable, Sendable {
     public let didReset: Bool
 
     public var remainingPercentage: Double { max(0, 100 - usedPercentage) }
+    public func percentage(showRemaining: Bool) -> Double { showRemaining ? remainingPercentage : usedPercentage }
+    public func fillFraction(showRemaining: Bool) -> Double { showRemaining ? min(1, remainingPercentage / 100) : fraction }
     public var level: UsageLevel { UsageLevel(percentage: usedPercentage) }
     public var fraction: Double { min(max(usedPercentage / 100, 0), 1) }
 

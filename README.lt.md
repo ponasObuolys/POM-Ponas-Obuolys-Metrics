@@ -6,16 +6,25 @@ bei papildomus kreditus.
 
 [English](README.md) · [Atsisiųsti](https://github.com/ponasObuolys/POM-Ponas-Obuolys-Metrics/releases) · [Diegimo pagalba](docs/INSTALL.txt)
 
-[2.3.1 kūrimo versijoje](docs/releases/2.3.1.md) pridėtos [Cursor ir Grok Bot metrikos](docs/CURSOR-GROK-METRICS.md):
-limitai, atsistatymo laikas ir papildomos išlaidos. Cursor integracija įjungiama
-atskirai; Grok Bot skaitoma vietinė suvestinė. Taip pat palaikomos Claude paskyros,
-kurios turi savaitės limitą be 5 valandų limito. Viešame 2.2.3 leidime šių pakeitimų dar nėra.
+[2.4.0 kūrimo versijoje](docs/releases/2.4.0.md) pridėti suvestinės ir istorijos
+patobulinimai bei tiesioginis [Cursor ir Grok Bot limitų atnaujinimas](docs/CURSOR-GROK-METRICS.md).
+Palaikoma užšifruota Cursor sesija macOS raktinėje. Serverio režimu Grok Bot
+limitai atsinaujina ir uždarius abi programas; vietinės suvestinės režimas lieka
+pasiekiamas. Atnaujinti paslaugų planų pavadinimai. Viešame 2.2.3 leidime šių pakeitimų nėra.
 
 > **[POM 2.2.3 paskelbta](https://github.com/ponasObuolys/POM-Ponas-Obuolys-Metrics/releases/tag/v2.2.3)** Apple silicon ir Intel kompiuteriams.
 > Šis leidimas **Apple nenotarizuotas**, programos parašas — ad-hoc. macOS gali
 > blokuoti pirmą paleidimą. „Developer ID“ pasirašymas ir notarizacija dar neatlikti.
 
-<img src="docs/images/usage-lt.png" width="344" alt="POM lietuviškai: Claude ir Codex limitai, planai ir papildomas naudojimas">
+2.4.0 versijoje taip pat įgyvendinti [suvestinės ir istorijos patobulinimai](docs/USAGE-INTERFACE.md):
+vienodas likučio rodymas, nepriklausomi suvestinės bei meniu pasirinkimai, kompaktiškas
+vaizdas ir rankinė tvarka, paspaudžiamos duomenų būsenos, vietiniai atsistatymo laikai,
+užbaigtų savaičių palyginimas bei pasirinkto laikotarpio JSON/CSV eksportas.
+Žemiau pateikti kuriamos versijos vaizdai; viešame 2.2.3 leidime šių pakeitimų nėra.
+
+
+<img src="docs/images/usage-lt.png" width="744" alt="POM lietuviškai: Claude ir Codex limitai, planai ir papildomas naudojimas">
+
 
 ## Galimybės
 

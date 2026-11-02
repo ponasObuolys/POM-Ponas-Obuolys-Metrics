@@ -6,10 +6,15 @@ reset times and extra credits into one small window.
 
 [🇱🇹 Lietuviškai](README.lt.md) · [Downloads](https://github.com/ponasObuolys/POM-Ponas-Obuolys-Metrics/releases) · [Installation help](docs/INSTALL.txt)
 
-The [2.3.1 development version](docs/releases/2.3.1.md) adds [Cursor and Grok Bot metrics](docs/CURSOR-GROK-METRICS.md):
-usage limits, reset times and on-demand spend. Cursor requires explicit opt-in;
-Grok Bot reads its local summary. It also supports Claude accounts with weekly limits
-and no five-hour session limit. These changes are not in the public 2.2.3 release.
+The [2.4.0 development version](docs/releases/2.4.0.md) adds
+[dashboard and history improvements](docs/USAGE-INTERFACE.md): used/remaining display,
+independent dashboard/menu selections, compact layout, manual order, data status,
+local reset times, completed-week comparisons and selected-period JSON/CSV export.
+[Cursor and Grok Bot metrics](docs/CURSOR-GROK-METRICS.md) support direct server refresh
+using the existing Cursor session, including encrypted macOS session storage.
+In server mode, Grok Bot usage refreshes while both provider apps are closed;
+the local-summary mode remains available. Provider plan labels are also updated.
+These changes are not in the public 2.2.3 release; previews below show development UI.
 
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-black)
 ![Apple silicon and Intel](https://img.shields.io/badge/Mac-Apple_silicon_%26_Intel-blue)
@@ -19,7 +24,7 @@ and no five-hour session limit. These changes are not in the public 2.2.3 releas
 > This release is **not Apple-notarized** and uses an ad-hoc app signature. macOS may
 > block the first launch. Developer ID signing and notarization are still pending.
 
-<p><img src="docs/images/usage-en.png" width="344" alt="POM showing Claude and Codex limits, reset times and extra usage in English"></p>
+<p><img src="docs/images/usage-en.png" width="744" alt="POM showing Claude and Codex limits, reset times and extra usage in English"></p>
 
 ## What you can see
 
