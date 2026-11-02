@@ -141,9 +141,15 @@ final class UsageViewModel: ObservableObject {
 
     var hasData: Bool { snapshot != nil }
 
+    var hasFiveHourLimit: Bool { snapshot?.fiveHour != nil }
+
+    var menuWindows: [DisplayWindow] {
+        hasFiveHourLimit ? [fiveHour, sevenDay] : [sevenDay]
+    }
+
     var fiveHour: DisplayWindow {
-        guard let snapshot else { return .empty }
-        return UsageDisplay.resolve(snapshot.fiveHour, now: now)
+        guard let window = snapshot?.fiveHour else { return .empty }
+        return UsageDisplay.resolve(window, now: now)
     }
 
     var sevenDay: DisplayWindow {
@@ -313,7 +319,9 @@ final class UsageViewModel: ObservableObject {
         tracker.updateThresholds(settings.alertPreset.thresholds)
         guard settings.notificationsEnabled, hasData else { return }
 
-        alert(window: .fiveHour, display: fiveHour, name: settings.language.windowTitle(minutes: 300))
+        if hasFiveHourLimit {
+            alert(window: .fiveHour, display: fiveHour, name: settings.language.windowTitle(minutes: 300))
+        }
         alert(window: .sevenDay, display: sevenDay, name: settings.language.windowTitle(minutes: 10080))
         if let fable { alert(window: .fable, display: fable, name: "Fable " + settings.language.windowTitle(minutes: 10080)) }
     }

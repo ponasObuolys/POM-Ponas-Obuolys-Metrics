@@ -9,6 +9,7 @@ public enum SubscriptionPlan {
         default: break
         }
         switch type?.lowercased() {
+        case "ultra": return "Ultra"
         case "max": return "Max"
         case "pro": return "Pro"
         case "team": return "Team"

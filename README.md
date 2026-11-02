@@ -6,9 +6,10 @@ reset times and extra credits into one small window.
 
 [🇱🇹 Lietuviškai](README.lt.md) · [Downloads](https://github.com/ponasObuolys/POM-Ponas-Obuolys-Metrics/releases) · [Installation help](docs/INSTALL.txt)
 
-The [2.3.0 development version](docs/releases/2.3.0.md) adds [Cursor and Grok Bot metrics](docs/CURSOR-GROK-METRICS.md):
+The [2.3.1 development version](docs/releases/2.3.1.md) adds [Cursor and Grok Bot metrics](docs/CURSOR-GROK-METRICS.md):
 usage limits, reset times and on-demand spend. Cursor requires explicit opt-in;
-Grok Bot reads its local summary. These integrations are not in the public 2.2.3 release.
+Grok Bot reads its local summary. It also supports Claude accounts with weekly limits
+and no five-hour session limit. These changes are not in the public 2.2.3 release.
 
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-black)
 ![Apple silicon and Intel](https://img.shields.io/badge/Mac-Apple_silicon_%26_Intel-blue)
@@ -22,7 +23,7 @@ Grok Bot reads its local summary. These integrations are not in the public 2.2.3
 
 ## What you can see
 
-- **Claude:** five-hour, weekly all-model usage and a separate Fable weekly limit when reported.
+- **Claude:** weekly all-model usage, plus five-hour and Fable weekly limits when reported.
 - **Codex:** the longest window in the main Codex usage bucket, plus the account's ChatGPT plan.
 - **Extra usage:** Claude's enabled state, monthly usage percentage and spending amounts when currency/scale are provided; Codex credit balances, monthly credit limits and available limit resets when reported. POM does not buy or redeem credits.
 - **Several indicators at once:** choose Claude, Fable and Codex individually in the menu bar. Switch between used and remaining percentages.
@@ -62,6 +63,9 @@ release uses an informational link for manual download. EdDSA update signatures
 verify file integrity and do not replace Apple notarization.
 
 Codex recovery notifications require the backend to explicitly report that ordinary usage is allowed. If your CLI omits this field, POM does not claim that access has recovered from percentages alone.
+
+Claude’s five-hour meter is shown only when the provider reports a session limit.
+Weekly-only responses (such as verified Ultra accounts) continue updating normally.
 
 ### When Claude readings stop updating
 

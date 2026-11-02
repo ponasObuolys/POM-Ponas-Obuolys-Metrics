@@ -6,9 +6,10 @@ bei papildomus kreditus.
 
 [English](README.md) · [Atsisiųsti](https://github.com/ponasObuolys/POM-Ponas-Obuolys-Metrics/releases) · [Diegimo pagalba](docs/INSTALL.txt)
 
-[2.3.0 kūrimo versijoje](docs/releases/2.3.0.md) pridėtos [Cursor ir Grok Bot metrikos](docs/CURSOR-GROK-METRICS.md):
+[2.3.1 kūrimo versijoje](docs/releases/2.3.1.md) pridėtos [Cursor ir Grok Bot metrikos](docs/CURSOR-GROK-METRICS.md):
 limitai, atsistatymo laikas ir papildomos išlaidos. Cursor integracija įjungiama
-atskirai; Grok Bot skaitoma vietinė suvestinė. Viešame 2.2.3 leidime jų dar nėra.
+atskirai; Grok Bot skaitoma vietinė suvestinė. Taip pat palaikomos Claude paskyros,
+kurios turi savaitės limitą be 5 valandų limito. Viešame 2.2.3 leidime šių pakeitimų dar nėra.
 
 > **[POM 2.2.3 paskelbta](https://github.com/ponasObuolys/POM-Ponas-Obuolys-Metrics/releases/tag/v2.2.3)** Apple silicon ir Intel kompiuteriams.
 > Šis leidimas **Apple nenotarizuotas**, programos parašas — ad-hoc. macOS gali
@@ -18,7 +19,7 @@ atskirai; Grok Bot skaitoma vietinė suvestinė. Viešame 2.2.3 leidime jų dar 
 
 ## Galimybės
 
-- **Claude limitai:** 5 valandų, bendras 7 dienų ir atskiras Fable savaitės limitas, kai šaltinis jį pateikia.
+- **Claude limitai:** bendras 7 dienų limitas, taip pat 5 valandų ir Fable savaitės limitai, kai šaltinis juos pateikia.
 - **Codex limitas:** ilgiausias pagrindinio Codex rinkinio laikotarpis ir ChatGPT plano pavadinimas.
 - **Papildomas naudojimas:** Claude mėnesio naudojimas bei sumos, kai pateikiama valiuta ir jos tikslumas; Codex kreditų likutis, mėnesio kreditų limitas ir galimi limito atkūrimai. Kreditai automatiškai neperkami ir nenaudojami.
 - **Keli indikatoriai meniu juostoje:** galima atskirai pasirinkti Claude, Fable ir Codex. Rodoma sunaudota dalis arba likutis.

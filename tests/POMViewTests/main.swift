@@ -46,6 +46,18 @@ import POMCore
         precondition(Settings(defaults: defaults).language == .lt)
         let notifications = NotificationService()
         let codex = CodexViewModel(settings: settings, notifications: notifications, store: codexStore, availability: .ready(URL(fileURLWithPath: "/example/codex")))
+        let weeklySupport = root.appendingPathComponent("weekly-only")
+        let weeklySnapshot = UsageSnapshot(fiveHour: nil,
+            sevenDay: UsageWindow(usedPercentage: 38, resetsAt: Date().addingTimeInterval(86400)),
+            capturedAt: Date(), source: .claudeCLI, plan: "ultra")
+        try SnapshotStore(fileURL: weeklySupport.appendingPathComponent("claude-snapshot.json"), source: .claudeCLI).save(weeklySnapshot)
+        let weeklyOnly = UsageViewModel(settings: settings, notifications: notifications, home: root,
+                                       supportDirectory: weeklySupport, claudeExecutable: nil)
+        precondition(weeklyOnly.hasData && !weeklyOnly.hasFiveHourLimit)
+        precondition(!weeklyOnly.isAwaitingClaudeUpdate && weeklyOnly.menuWindows.count == 1)
+        precondition(weeklyOnly.sevenDay.usedPercentage == 38)
+        try render(UsagePanelView(model: weeklyOnly, codex: codex, settings: settings),
+                   name: "claude-weekly-only", directory: output, scheme: .dark)
         let disconnected = UsageViewModel(settings: settings, notifications: notifications, home: root, supportDirectory: support)
         precondition(disconnected.hasData && !disconnected.isBridgeConnected)
         precondition(disconnected.fable?.usedPercentage == 4 && disconnected.planTitle == "Max 20x")

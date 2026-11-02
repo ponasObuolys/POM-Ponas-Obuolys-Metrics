@@ -60,9 +60,9 @@ do {
     """
     let snapshot = try UsageParser.parse(
         data: Data(json.utf8), source: .statusline, capturedAt: date(0))
-    checkClose("tiltas: 5 val. procentai", snapshot.fiveHour.usedPercentage, 23.5)
+    checkClose("tiltas: 5 val. procentai", snapshot.fiveHour!.usedPercentage, 23.5)
     checkClose("tiltas: 7 d. procentai", snapshot.sevenDay.usedPercentage, 41.2)
-    checkEqual("tiltas: 5 val. atsistatymas", snapshot.fiveHour.resetsAt, date(1753401600))
+    checkEqual("tiltas: 5 val. atsistatymas", snapshot.fiveHour?.resetsAt, date(1753401600))
     checkEqual("tiltas: 7 d. atsistatymas", snapshot.sevenDay.resetsAt, date(1753833600))
     checkEqual("tiltas: fiksavimo laikas", snapshot.capturedAt, date(1753387200))
     checkEqual("tiltas: šaltinis", snapshot.source, UsageSnapshot.Source.statusline)
@@ -80,9 +80,9 @@ do {
     """
     let snapshot = try UsageParser.parse(
         data: Data(json.utf8), source: .server, capturedAt: date(1000))
-    checkClose("serveris/objektas: 5 val.", snapshot.fiveHour.usedPercentage, 17.0)
+    checkClose("serveris/objektas: 5 val.", snapshot.fiveHour!.usedPercentage, 17.0)
     checkClose("serveris/objektas: 7 d.", snapshot.sevenDay.usedPercentage, 11.0)
-    checkEqual("serveris/objektas: ISO data", snapshot.fiveHour.resetsAt, date(1770577199))
+    checkEqual("serveris/objektas: ISO data", snapshot.fiveHour?.resetsAt, date(1770577199))
     checkEqual("serveris/objektas: fiksavimo laikas iš išorės", snapshot.capturedAt, date(1000))
     checkEqual("serveris/objektas: šaltinis", snapshot.source, UsageSnapshot.Source.server)
 } catch {
@@ -101,11 +101,35 @@ do {
     """
     let snapshot = try UsageParser.parse(
         data: Data(json.utf8), source: .server, capturedAt: date(1000))
-    checkClose("serveris/masyvas: 5 val.", snapshot.fiveHour.usedPercentage, 62.5)
+    checkClose("serveris/masyvas: 5 val.", snapshot.fiveHour!.usedPercentage, 62.5)
     checkClose("serveris/masyvas: 7 d.", snapshot.sevenDay.usedPercentage, 88.0)
     checkEqual("serveris/masyvas: atsistatymas", snapshot.sevenDay.resetsAt, date(1753833600))
 } catch {
     failures.append("serverio masyvo formatas metė klaidą: \(error)")
+}
+
+// Weekly-only responses are valid for accounts without a session limit.
+do {
+    let payloads = [
+        #"{"seven_day":{"utilization":38}}"#,
+        #"{"five_hour":null,"seven_day":{"utilization":38}}"#,
+        #"{"rate_limits":{"seven_day":{"utilization":38}}}"#,
+        #"{"limits":[{"kind":"weekly_all","percent":38}]}"#
+    ]
+    for json in payloads {
+        let snapshot = try UsageParser.parse(data: Data(json.utf8), source: .claudeCLI, capturedAt: date(100))
+        checkEqual("weekly-only: session absent", snapshot.fiveHour, nil)
+        checkClose("weekly-only: weekly retained", snapshot.sevenDay.usedPercentage, 38)
+    }
+    let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: folder) }
+    let store = SnapshotStore(fileURL: folder.appendingPathComponent("snapshot.json"), source: .claudeCLI)
+    let snapshot = UsageSnapshot(fiveHour: nil, sevenDay: UsageWindow(usedPercentage: 38, resetsAt: nil),
+                                 capturedAt: date(100), source: .claudeCLI)
+    try store.save(snapshot)
+    checkEqual("weekly-only: cache round trip", store.load(), snapshot)
+} catch {
+    failures.append("weekly-only response failed: \(error)")
 }
 
 // MARK: - Skaitymas: seven_day_opus nepainiojamas su seven_day
@@ -550,7 +574,7 @@ do {
     """
     try Data(payload.utf8).write(to: file)
     let loaded = store.load()
-    checkClose("failas perskaitomas", loaded?.fiveHour.usedPercentage ?? -1, 10)
+    checkClose("failas perskaitomas", loaded?.fiveHour?.usedPercentage ?? -1, 10)
     checkEqual("šaltinis pažymimas kaip tiltas", loaded?.source, UsageSnapshot.Source.statusline)
 
     try Data("sugadinta".utf8).write(to: file)
@@ -842,7 +866,7 @@ if ProcessInfo.processInfo.environment["POM_CLAUDE_TEST"] == "1" {
     if let executable = ClaudeClient.executable {
         do {
             let snapshot = try ClaudeClient().fetch(executable: executable)
-            check("Claude gyvas atsakymas", snapshot.fiveHour.usedPercentage >= 0)
+            check("Claude gyvas atsakymas", snapshot.sevenDay.usedPercentage >= 0)
             check("Fable gyvas atsakymas", snapshot.fable != nil)
             check("Claude planas gyvame atsakyme", snapshot.plan != nil)
             print("· Claude ir Fable limitai gauti; planas: \(SubscriptionPlan.claudeLocal() ?? snapshot.plan ?? "nežinomas")")

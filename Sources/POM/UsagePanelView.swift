@@ -25,7 +25,7 @@ struct UsagePanelView: View {
             scores[source] = windows.filter { !$0.didReset && $0.usedPercentage.isFinite }
                 .map(\.usedPercentage).max()
         }
-        if model.hasData { add(.claude, [model.fiveHour, model.sevenDay]) }
+        if model.hasData { add(.claude, model.menuWindows) }
         if let fable = model.fable { add(.fable, [fable]) }
         if codex.hasData { add(.codex, [codex.window]) }
         for source in [MenuBarSource.cursor, .grokBot] where additional.snapshot(for: source) != nil {
@@ -123,9 +123,11 @@ struct UsagePanelView: View {
 
             if model.hasData {
                 HStack(alignment: .top, spacing: wide ? 20 : 12) {
-                    WindowRow(title: settings.language.windowTitle(minutes: 300), window: model.fiveHour,
-                              now: model.now, language: settings.language, prominent: featured)
-                        .frame(maxWidth: .infinity)
+                    if model.hasFiveHourLimit {
+                        WindowRow(title: settings.language.windowTitle(minutes: 300), window: model.fiveHour,
+                                  now: model.now, language: settings.language, prominent: featured)
+                            .frame(maxWidth: .infinity)
+                    }
                     WindowRow(title: settings.text("Visi modeliai · 7 dienų", "All models · 7-day"), window: model.sevenDay,
                               now: model.now, language: settings.language, prominent: featured)
                         .frame(maxWidth: .infinity)

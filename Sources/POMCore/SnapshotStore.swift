@@ -60,9 +60,9 @@ public struct SnapshotStore: Sendable {
             "schema": 1,
             "source": snapshot.source.rawValue,
             "captured_at": snapshot.capturedAt.timeIntervalSince1970,
-            "five_hour": encode(snapshot.fiveHour),
             "seven_day": encode(snapshot.sevenDay),
         ]
+        if let fiveHour = snapshot.fiveHour { payload["five_hour"] = encode(fiveHour) }
         if let fable = snapshot.fable { payload["seven_day_fable"] = encode(fable) }
         if let plan = snapshot.plan { payload["plan"] = plan }
         if let extra = snapshot.extraUsage { payload["extra_usage"] = extra.json }

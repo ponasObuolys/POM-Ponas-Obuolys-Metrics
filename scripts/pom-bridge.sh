@@ -34,14 +34,14 @@ snapshot=$(printf '%s' "$input" | jq -c '
       ([$r.model_scoped[]? | select(.display_name | ascii_downcase | test("^fable( |$)"))][0]) //
       ([$r.limits[]? | select(.kind == "weekly_scoped") |
         select(.scope.model.display_name | ascii_downcase | test("^fable( |$)"))][0])) as $fable
-  | if $five == null or $seven == null then empty
+  | if $seven == null then empty
     else {
       schema: 1,
       source: "statusline",
       captured_at: (now | floor),
-      five_hour: $five,
       seven_day: $seven
-    } + (if $fable == null then {} else {seven_day_fable: $fable} end)
+    } + (if $five == null then {} else {five_hour: $five} end)
+      + (if $fable == null then {} else {seven_day_fable: $fable} end)
       + (if .subscription_type == null then {} else {plan: .subscription_type} end)
     end
 ' 2>/dev/null) || exit 0

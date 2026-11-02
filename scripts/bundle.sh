@@ -12,17 +12,21 @@ key="$(tr -d '[:space:]' < config/sparkle-public-key.txt)"
 if [[ ! "$key" =~ ^[A-Za-z0-9+/]{43}=$ ]]; then
   echo "Invalid Sparkle public key." >&2; exit 1
 fi
+# Optional overrides for machines whose default SDK/toolchain is incomplete.
+build_args=()
+if [[ -n "${POM_BUILD_SDK:-}" ]]; then build_args+=(--sdk "$POM_BUILD_SDK"); fi
+if [[ -n "${POM_BUILD_SYSTEM:-}" ]]; then build_args+=(--build-system "$POM_BUILD_SYSTEM"); fi
 for arch in arm64 x86_64; do
-  swift build -c release --triple "$arch-apple-macosx14.0" --product POM
+  swift build ${build_args[@]+"${build_args[@]}"} -c release --triple "$arch-apple-macosx14.0" --product POM
 done
-arm_dir="$(swift build -c release --triple arm64-apple-macosx14.0 --show-bin-path)"
-intel_dir="$(swift build -c release --triple x86_64-apple-macosx14.0 --show-bin-path)"
+arm_dir="$(swift build ${build_args[@]+"${build_args[@]}"} -c release --triple arm64-apple-macosx14.0 --show-bin-path)"
+intel_dir="$(swift build ${build_args[@]+"${build_args[@]}"} -c release --triple x86_64-apple-macosx14.0 --show-bin-path)"
 app="$root/dist/POM.app"
 contents="$app/Contents"
 rm -rf "$app" "$root/dist/POM.iconset"
 mkdir -p "$contents/MacOS" "$contents/Resources" "$contents/Frameworks" "$root/dist/POM.iconset"
 lipo -create "$arm_dir/POM" "$intel_dir/POM" -output "$contents/MacOS/POM"
-swift scripts/make-icon.swift "$root/dist/POM.iconset" >/dev/null
+SDKROOT="${POM_BUILD_SDK:-$(xcrun --show-sdk-path)}" swift scripts/make-icon.swift "$root/dist/POM.iconset" >/dev/null
 iconutil -c icns "$root/dist/POM.iconset" -o "$contents/Resources/POM.icns"
 rm -rf "$root/dist/POM.iconset"
 ditto "$arm_dir/POM_POM.bundle" "$contents/Resources/POM_POM.bundle"

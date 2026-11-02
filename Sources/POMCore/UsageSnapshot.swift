@@ -11,7 +11,7 @@ public struct UsageWindow: Equatable, Sendable {
     }
 }
 
-/// Abiejų limitų būsena viename momente.
+/// Claude limitų būsena viename momente; sesijos limitas gali būti netaikomas.
 public struct UsageSnapshot: Equatable, Sendable {
     public enum Source: String, Equatable, Sendable {
         case statusline
@@ -19,7 +19,7 @@ public struct UsageSnapshot: Equatable, Sendable {
         case claudeCLI
     }
 
-    public let fiveHour: UsageWindow
+    public let fiveHour: UsageWindow?
     public let sevenDay: UsageWindow
     public let fable: UsageWindow?
     public let plan: String?
@@ -27,7 +27,7 @@ public struct UsageSnapshot: Equatable, Sendable {
     public let capturedAt: Date
     public let source: Source
 
-    public init(fiveHour: UsageWindow, sevenDay: UsageWindow, capturedAt: Date, source: Source,
+    public init(fiveHour: UsageWindow?, sevenDay: UsageWindow, capturedAt: Date, source: Source,
                 fable: UsageWindow? = nil, plan: String? = nil, extraUsage: ClaudeExtraUsage? = nil) {
         self.fiveHour = fiveHour
         self.sevenDay = sevenDay
@@ -72,7 +72,7 @@ public enum UsageParser {
             }
         }
 
-        guard let fiveHour = windows[fiveHourKey] else { throw ParseError.missingWindow("five_hour") }
+        let fiveHour = windows[fiveHourKey]
         guard let sevenDay = windows[sevenDayKey] else { throw ParseError.missingWindow("seven_day") }
 
         let captured = decodeDate(firstValue(root, ["captured_at", "capturedAt"])) ?? fallback

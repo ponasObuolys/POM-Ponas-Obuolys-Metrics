@@ -37,7 +37,9 @@ final class HistoryService: ObservableObject {
     }
 
     func record(_ snapshot: UsageSnapshot) {
-        record(.claudeSession, window: snapshot.fiveHour, at: snapshot.capturedAt)
+        if let session = snapshot.fiveHour {
+            record(.claudeSession, window: session, at: snapshot.capturedAt)
+        }
         record(.claudeWeekly, window: snapshot.sevenDay, at: snapshot.capturedAt)
         if let fable = snapshot.fable { record(.fableWeekly, window: fable, at: snapshot.capturedAt) }
     }

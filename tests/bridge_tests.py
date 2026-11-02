@@ -52,6 +52,19 @@ class BridgeTests(unittest.TestCase):
         self.assertEqual(self.run_script("uninstall-bridge.sh").returncode, 0)
         self.assertEqual(script.read_text().strip(), original.strip())
 
+    def test_weekly_only_replaces_previous_session(self):
+        self.run_script("pom-bridge.sh", input=json.dumps({"rate_limits": {
+            "five_hour": {"used_percentage": 97}, "seven_day": {"used_percentage": 30}}}))
+        for session in [{}, {"five_hour": None}]:
+            self.run_script("pom-bridge.sh", input=json.dumps({"rate_limits": {
+                "seven_day": {"used_percentage": 38}, **session}}))
+            snapshot = json.loads(self.snapshot.read_text())
+            self.assertNotIn("five_hour", snapshot)
+            self.assertEqual(snapshot["seven_day"]["used_percentage"], 38)
+        previous = self.snapshot.read_bytes()
+        self.run_script("pom-bridge.sh", input='{"rate_limits":{"five_hour":null}}')
+        self.assertEqual(self.snapshot.read_bytes(), previous)
+
     def test_quoted_path_and_missing_path_with_spaces(self):
         script = self.claude / "nauja juosta.sh"
         self.settings.write_text(json.dumps({"statusLine": {"command": f'"{script}"'}}))

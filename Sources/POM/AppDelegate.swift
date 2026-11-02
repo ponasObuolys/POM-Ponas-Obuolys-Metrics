@@ -119,7 +119,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var entries: [MenuBarEntry] {
         settings.menuBarSources.map { source in
             switch source {
-            case .claude: return MenuBarEntry(source: source, windows: [model.fiveHour, model.sevenDay], hasData: model.hasData)
+            case .claude: return MenuBarEntry(source: source, windows: model.menuWindows, hasData: model.hasData)
             case .fable: return MenuBarEntry(source: source, windows: [model.fable ?? .empty], hasData: model.fable != nil)
             case .codex: return MenuBarEntry(source: source, windows: [codex.window], hasData: codex.hasData)
             case .cursor, .grokBot:

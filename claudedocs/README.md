@@ -28,6 +28,9 @@ Caches are separate per source under `~/Library/Application Support/POM`:
 `snapshot.json`, `server-snapshot.json`, `claude-snapshot.json`, `codex-snapshot.json`.
 New fields remain optional so 2.1 caches still load. A generic snapshot without
 Fable/credit fields does not erase newer complete CLI metadata.
+Claude session windows are optional: missing or null `five_hour` with a valid
+`seven_day` is accepted by the parser, cache and bridge. The panel and menu bar
+show only reported windows; absent sessions generate no alerts or history readings.
 
 Token history is separate from quota recovery. `account/usage/read` supplies Codex
 account daily token buckets; unsupported/error responses leave the last cache marked
@@ -126,3 +129,17 @@ This explicit opt-in skips unit tests and reads real local Claude sessions into
 and skipped-line count. It runs batches without the app's quiet intervals to measure
 parsing cost. A repeat measures warm-cache discovery; remove only that benchmark
 folder to repeat a cold import. Run ordinary `swift run pom-tests` separately.
+
+## Local SDK override
+
+If the default SDK reports a missing `SwiftUIMacros.StateMacro` plugin, use an
+installed compatible SDK without changing the system-wide developer selection:
+
+```bash
+POM_BUILD_SDK=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk POM_BUILD_SYSTEM=native bash scripts/check-ui.sh
+POM_BUILD_SDK=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk POM_BUILD_SYSTEM=native bash scripts/bundle.sh
+```
+
+Both overrides are optional; normal builds keep SwiftPM’s defaults. The native
+build system is deprecated by newer SwiftPM versions, so this is a local fallback,
+not a release requirement. Use the supported default toolchain when available.
