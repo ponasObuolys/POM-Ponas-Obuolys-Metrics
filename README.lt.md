@@ -1,4 +1,4 @@
-# POM — Claude ir Codex limitai macOS meniu juostoje
+# POM – Claude ir Codex limitai macOS meniu juostoje
 
 **Matyk, kiek naudojimo liko, neatsitraukdamas nuo darbo.**
 POM viename lange parodo Claude ir Codex prenumeratos limitus, jų atsistatymo laiką
@@ -6,36 +6,27 @@ bei papildomus kreditus.
 
 [English](README.md) · [Atsisiųsti](https://github.com/ponasObuolys/POM-Ponas-Obuolys-Metrics/releases) · [Diegimo pagalba](docs/INSTALL.txt)
 
-[2.4.0 kūrimo versijoje](docs/releases/2.4.0.md) pridėti suvestinės ir istorijos
-patobulinimai bei tiesioginis [Cursor ir Grok Bot limitų atnaujinimas](docs/CURSOR-GROK-METRICS.md).
-Palaikoma užšifruota Cursor sesija macOS raktinėje. Serverio režimu Grok Bot
-limitai atsinaujina ir uždarius abi programas; vietinės suvestinės režimas lieka
-pasiekiamas. Atnaujinti paslaugų planų pavadinimai. Viešame 2.2.3 leidime šių pakeitimų nėra.
-
-> **[POM 2.2.3 paskelbta](https://github.com/ponasObuolys/POM-Ponas-Obuolys-Metrics/releases/tag/v2.2.3)** Apple silicon ir Intel kompiuteriams.
-> Šis leidimas **Apple nenotarizuotas**, programos parašas — ad-hoc. macOS gali
-> blokuoti pirmą paleidimą. „Developer ID“ pasirašymas ir notarizacija dar neatlikti.
-
-2.4.0 versijoje taip pat įgyvendinti [suvestinės ir istorijos patobulinimai](docs/USAGE-INTERFACE.md):
-vienodas likučio rodymas, nepriklausomi suvestinės bei meniu pasirinkimai, kompaktiškas
-vaizdas ir rankinė tvarka, paspaudžiamos duomenų būsenos, vietiniai atsistatymo laikai,
-užbaigtų savaičių palyginimas bei pasirinkto laikotarpio JSON/CSV eksportas.
-Žemiau pateikti kuriamos versijos vaizdai; viešame 2.2.3 leidime šių pakeitimų nėra.
-
+> **[POM 2.4.0 paskelbta](https://github.com/ponasObuolys/POM-Ponas-Obuolys-Metrics/releases/tag/v2.4.0)** Apple silicon ir Intel kompiuteriams.
+> Nauja po 2.2.3: Cursor ir Grok Bot limitai, persitvarkanti suvestinė su kompaktišku vaizdu,
+> savaičių palyginimas ir JSON/CSV eksportas istorijoje. Ištaisyta klaida, dėl kurios Claude
+> paskyrų be 5 valandų limito rodmenys nebeatsinaujindavo. Žr. [leidimo aprašymą](docs/releases/2.4.0.md).
+>
+> Šis leidimas **Apple nenotarizuotas**, programos parašas yra ad-hoc. macOS gali
+> blokuoti pirmą paleidimą. Developer ID pasirašymas ir notarizacija dar neatlikti.
 
 <img src="docs/images/usage-lt.png" width="744" alt="POM lietuviškai: Claude ir Codex limitai, planai ir papildomas naudojimas">
-
 
 ## Galimybės
 
 - **Claude limitai:** bendras 7 dienų limitas, taip pat 5 valandų ir Fable savaitės limitai, kai šaltinis juos pateikia.
 - **Codex limitas:** ilgiausias pagrindinio Codex rinkinio laikotarpis ir ChatGPT plano pavadinimas.
+- **Cursor ir Grok Bot (pasirinktinai):** Cursor limitai, atsistatymo laikas ir papildomos išlaidos, taip pat Grok Bot savaitės naudojimas. Abu šaltiniai išjungti, kol jų neįjungi. Žr. [kaip gaunami šie rodmenys](docs/CURSOR-GROK-METRICS.md).
 - **Papildomas naudojimas:** Claude mėnesio naudojimas bei sumos, kai pateikiama valiuta ir jos tikslumas; Codex kreditų likutis, mėnesio kreditų limitas ir galimi limito atkūrimai. Kreditai automatiškai neperkami ir nenaudojami.
-- **Keli indikatoriai meniu juostoje:** galima atskirai pasirinkti Claude, Fable ir Codex. Rodoma sunaudota dalis arba likutis.
+- **Suvestinė pagal tave:** kortelės persitvarko pagal pasirinktas paslaugas, yra kompaktiškas sąrašas, rankinė tvarka ir prisegimas. Atskirai pasirenki, ką rodyti lange ir ką meniu juostoje, ir ar matyti sunaudotą dalį, ar likutį. Žr. [sąsajos aprašymą](docs/USAGE-INTERFACE.md) (anglų k.).
 - **Pranešimai:** pasirenkamos perspėjimų ribos ir pranešimas, kai nauji duomenys patvirtina išnaudoto limito atsistatymą.
-- **7 ir 30 dienų tokenų istorija:** dvi dienos kreivės — Claude ir Codex — bei visų modelių sumos. Claude Code naudojimas skaitomas iš šio Mac, Codex — iš paskyros.
+- **7 ir 30 dienų tokenų istorija:** dvi dienos kreivės, Claude ir Codex, visų modelių sumos, užbaigtų savaičių palyginimas ir JSON/CSV eksportas. Claude Code naudojimas skaitomas iš šio Mac, Codex naudojimas gaunamas iš paskyros.
 - **Lietuvių ir anglų kalbos:** automatinis parinkimas pagal kompiuterio pagrindinę kalbą ir perjungimas nustatymuose. Kitoms sistemos kalboms parenkama anglų.
-- **Naujinimų patikra:** Sparkle skaito pasirašytą naujinimų sąrašą. Šiam nenotarizuotam leidimui atveriamas atsisiuntimo puslapis; tiesioginis diegimas programoje numatytas būsimiems notarizuotiems leidimams.
+- **Naujinimų patikra:** POM tikrina pasirašytą naujinimų sąrašą ir praneša, kai pasirodo naujesnė versija. Leidimai dar nenotarizuoti, todėl programa atveria atsisiuntimo puslapį, o pati naujinimo nediegia.
 
 ![POM naudojimo istorija](docs/images/history-lt.png)
 
@@ -52,33 +43,39 @@ Papildomas CLI procesas nuolat nelaikomas paleistas.
 3. Prisijunk prie įdiegtos Claude Code ir (arba) Codex CLI. POM limitus perskaitys pati.
 4. Paspausk indikatorius meniu juostoje. Kalbą pakeisi krumpliaračio meniu, grafiką atversi paspaudęs **Istorija**.
 
-Reikia macOS 14 ar naujesnės ir bent vienos įdiegtos bei prie paskyros prijungtos CLI.
+Reikia macOS 14 ar naujesnės ir bent vienos įdiegtos bei prie paskyros prijungtos CLI:
+[Claude Code](https://code.claude.com/docs/en/overview) arba [Codex](https://github.com/openai/codex).
 Pasirenkamam Claude būsenos juostos tiltui reikia `jq`. Claude sąsaja priklauso nuo
 CLI versijos; patikrinta su 2.1.263.
 
-**macOS perspėjimas:** leidimai iki 2.2.3 imtinai nenotarizuoti, todėl kitame
+**macOS perspėjimas:** leidimai iki 2.4.0 imtinai nenotarizuoti, todėl kitame
 kompiuteryje juos gali blokuoti Gatekeeper. Savadarbis sertifikatas to neišsprendžia.
 Neišjunk Gatekeeper apsaugos. Tikslų perspėjimą įvertink pagal
 [Apple paaiškinimą](https://support.apple.com/en-us/102445).
 
-2.1.2 versijoje naujintuvo nėra: atsisiųsk 2.2.3 DMG ir pakeisk POM programą
-Applications aplanke. **Ieškoti naujinimų…** tikrina pasirašytą sąrašą; šiam
-leidimui pateikiama rankinio atsisiuntimo nuoroda. EdDSA parašai patvirtina failų
-vientisumą, tačiau neatstoja Apple notarizacijos.
+**Atnaujinimas:** POM pati savęs kol kas nepakeičia. Nuo 2.2.1 versijos ji praneša
+apie naujesnę versiją, o **Ieškoti naujinimų…** atveria atsisiuntimo puslapį.
+Atsisiųsk DMG, uždaryk POM ir pakeisk programą Applications aplanke. Nustatymai ir
+istorija išlieka. 2.1.2 ir senesnėse versijose naujinimų patikros nėra, todėl naują
+DMG atsisiųsk tokiu pat būdu. EdDSA parašai patvirtina failų vientisumą, tačiau
+neatstoja Apple notarizacijos.
 
 Codex atsistatymo pranešimui reikia aiškaus serverio patvirtinimo, kad įprastas naudojimas vėl leidžiamas. Jei tavo CLI šio lauko nepateikia, POM nesiunčia tokio pranešimo vien pagal procentus.
+
+Claude 5 valandų limitas rodomas tik tada, kai paslauga jį pateikia. Paskyrų, kurios
+turi tik savaitės limitą (pvz., patvirtintų Ultra paskyrų), rodmenys atsinaujina įprastai.
 
 ### Kai Claude duomenys neatsinaujina
 
 Pasibaigęs laikmatis savaime nepatvirtina naujo limito. Kol Claude nepateikia
-naujų duomenų, POM rodo „–“ ir „laukiama naujų duomenų“; atsistatymo patvirtinti nereikia.
+naujų duomenų, POM rodo "–" ir "laukiama naujų duomenų"; atsistatymo patvirtinti nereikia.
 
 Paspausk **Prisijungti prie Claude** prie pranešimo arba pasirink
 **Nustatymai → Prisijungti prie Claude…**. POM atidarys Terminal ir paleis
 `claude auth login`. Užbaik prisijungimą naršyklėje arba vykdyk Terminal nurodymus.
 Komandai sėkmingai pasibaigus, POM automatiškai atnaujins limitus. Jei Terminal
 nepavyksta atidaryti, pranešime pateikiama komanda rankiniam prisijungimui.
-POM neskaito prisijungimo kodo ar rakto – gauna tik komandos baigimo būseną.
+POM neskaito prisijungimo kodo ar rakto, gauna tik komandos baigimo būseną.
 
 ChatGPT/Codex turi atskirą **Nustatymai → Prisijungti prie ChatGPT…** veiksmą.
 Mygtukas rodomas ir Codex skiltyje, kai paskyra neprijungta arba nepavyksta
@@ -100,19 +97,36 @@ Norint pašalinti podėlį, reikia uždaryti POM ir iš šio aplanko pašalinti 
 `claude-token-index.sqlite`, `claude-tokens.json` bei `codex-tokens.json`.
 Kitą kartą paleidus programą, duomenys bus surinkti iš naujo.
 
+## Kūrimas
+
+```bash
+swift run pom-tests
+python3 tests/bridge_tests.py
+bash scripts/check-ui.sh
+bash scripts/bundle.sh
+bash scripts/install.sh
+```
+
+`bundle.sh` surenka universalų paketą su Apple silicon ir Intel versijomis.
+`bash scripts/make-dmg.sh` sukuria aiškiai pažymėtą **kūrimo** DMG; tai nėra
+patikimas viešas diegimo paketas.
+
+Žr. [kūrėjo aprašymą](claudedocs/README.md), [pasirašymo ir skelbimo instrukciją](docs/RELEASING.md)
+bei [2.4.0 leidimo aprašymą](docs/releases/2.4.0.md). Pranešdamas apie klaidą nurodyk
+macOS, POM ir CLI versijas bei tikslų klaidos tekstą. Prisijungimo duomenų ir
+privačių pokalbių nepridėk.
+
 ## Paremti POM
 
-[Prisidėti prie kūrimo per Stripe](https://buy.stripe.com/9B65kE4VZaDL5uI33F6Zy00) galima vienkartine savanoriška parama. Sumą eurais pasirenki pats, siūlomi 5 €. Gavėjas – Ponas Obuolys, MB. Programa lieka nemokama ir atvirojo kodo.
+[Prisidėti prie kūrimo per Stripe](https://buy.stripe.com/9B65kE4VZaDL5uI33F6Zy00) galima vienkartine savanoriška parama. Sumą eurais pasirenki pats, siūlomi 5 €. Gavėjas yra Ponas Obuolys, MB. Programa lieka nemokama ir atvirojo kodo.
 
 Paramos puslapį atveria matomas **Paremti POM** mygtukas programos lange, **Nustatymai → Paremti POM…** arba nuoroda DMG pakete. Mokėjimas atliekamas naršyklėje; POM neprideda foninių procesų ir negauna mokėjimo duomenų.
 
 Nedidelis priminimas pasirodo pirmą kartą paleidus programą ir įdiegus naujesnę versiją, ne dažniau kaip kartą per septynias dienas. Jis neblokuoja programos. Pakartotinis paleidimas ar praleistas atnaujinimas nesukelia vėlesnio priminimo. Pasirink **Gal vėliau** arba užverk langą ir tęsk darbą. Priminimas gali pasirodyti po kito atnaujinimo, laikantis septynių dienų ribos. Paskutinė rodyta versija ir data lieka šiame Mac.
 
-## Kūrimas
-
-Žr. [kūrėjo aprašymą](claudedocs/README.md) ir [pasirašymo instrukciją](docs/RELEASING.md).
-Universaliame pakete yra Apple silicon ir Intel versijos. Vietinis kūrimo DMG
-nėra notarizuotas viešas leidimas.
+## Licencija
 
 [MIT licencija](LICENSE). Nepriklausomas Ponas Obuolys projektas, nesusijęs su
-Anthropic ar OpenAI. Ženklai priklauso jų savininkams; [išteklių licencijos](Sources/POM/Resources/THIRD-PARTY-NOTICES.txt).
+Anthropic ar OpenAI. Ženklai priklauso jų savininkams. SVG piktogramos paimtos iš
+[Lobe Icons](https://github.com/lobehub/lobe-icons); žr. [išteklių licencijas](Sources/POM/Resources/THIRD-PARTY-NOTICES.txt).
+Naujinimų patikrai naudojama [Sparkle](https://sparkle-project.org/) biblioteka.

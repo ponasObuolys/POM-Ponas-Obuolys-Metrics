@@ -1,6 +1,6 @@
-# Usage interface improvements (development)
+# Usage interface
 
-These changes are in the working source, not the public 2.2.3 download.
+Available since the public 2.4.0 release.
 
 - **Settings → Show remaining usage** applies to every quota number and bar, including the dashboard. Colors and alerts still indicate how much has been used. Expired limits remain unknown until a fresh reading confirms recovery.
 - **Services → In dashboard / In menu bar** are independent. Each selection keeps at least one provider. On first launch of this version, the dashboard copies the existing menu selection; subsequent changes are independent. Cursor access remains opt-in.

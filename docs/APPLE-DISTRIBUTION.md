@@ -1,6 +1,6 @@
 # Apple enrollment and distribution
 
-Status checked on 2026-09-07. The published POM 2.2.3 is still **not notarized**.
+Status checked on 2026-09-07. Published releases through 2.4.0 are still **not notarized**.
 Opening the enrollment website is not enrollment, and preparing code is not App Store approval.
 
 ## Enrollment
@@ -55,7 +55,7 @@ After membership is active:
 2. Store notarization credentials in a local Keychain profile using the procedure in [RELEASING.md](RELEASING.md). Do not commit a certificate export, private key or app-specific password.
 3. Set the exact `POM_SIGN_IDENTITY` and `POM_NOTARY_PROFILE`. If using a separate Keychain, set `POM_SIGN_KEYCHAIN` and `POM_NOTARY_KEYCHAIN` as well.
 4. Run `bash scripts/apple-preflight.sh --verify-notary`. This reads Apple's notarization history to verify access; it does not submit software.
-5. Allocate a **new version**; never replace the existing 2.2.3 assets with a different binary. Run the source, bridge, UI and signing preflight checks, then `bash scripts/release.sh` with the configured environment.
+5. Allocate a **new version**; never replace existing release assets with a different binary. Run the source, bridge, UI and signing preflight checks, then `bash scripts/release.sh` with the configured environment.
 6. Verify Developer ID signing, Apple's accepted submissions, stapled tickets, Gatekeeper assessment, DMG checksums and Sparkle signatures. Test the downloaded DMG on another Mac before announcing trusted distribution.
 7. Configure the documented GitHub Actions secrets and publish only the checked, notarized release. The source/test workflow remains independent of paid Apple membership.
 

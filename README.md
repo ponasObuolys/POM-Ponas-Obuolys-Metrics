@@ -6,21 +6,15 @@ reset times and extra credits into one small window.
 
 [🇱🇹 Lietuviškai](README.lt.md) · [Downloads](https://github.com/ponasObuolys/POM-Ponas-Obuolys-Metrics/releases) · [Installation help](docs/INSTALL.txt)
 
-The [2.4.0 development version](docs/releases/2.4.0.md) adds
-[dashboard and history improvements](docs/USAGE-INTERFACE.md): used/remaining display,
-independent dashboard/menu selections, compact layout, manual order, data status,
-local reset times, completed-week comparisons and selected-period JSON/CSV export.
-[Cursor and Grok Bot metrics](docs/CURSOR-GROK-METRICS.md) support direct server refresh
-using the existing Cursor session, including encrypted macOS session storage.
-In server mode, Grok Bot usage refreshes while both provider apps are closed;
-the local-summary mode remains available. Provider plan labels are also updated.
-These changes are not in the public 2.2.3 release; previews below show development UI.
-
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-black)
 ![Apple silicon and Intel](https://img.shields.io/badge/Mac-Apple_silicon_%26_Intel-blue)
 ![MIT license](https://img.shields.io/badge/license-MIT-green)
 
-> **[POM 2.2.3 is available](https://github.com/ponasObuolys/POM-Ponas-Obuolys-Metrics/releases/tag/v2.2.3)** for Apple silicon and Intel Macs.
+> **[POM 2.4.0 is available](https://github.com/ponasObuolys/POM-Ponas-Obuolys-Metrics/releases/tag/v2.4.0)** for Apple silicon and Intel Macs.
+> New since 2.2.3: Cursor and Grok Bot limits, a rearranging dashboard with a compact view,
+> week comparisons and JSON/CSV export in History, and a fix for Claude accounts without a
+> five-hour limit, whose readings stopped updating. See the [release notes](docs/releases/2.4.0.md).
+>
 > This release is **not Apple-notarized** and uses an ad-hoc app signature. macOS may
 > block the first launch. Developer ID signing and notarization are still pending.
 
@@ -30,12 +24,13 @@ These changes are not in the public 2.2.3 release; previews below show developme
 
 - **Claude:** weekly all-model usage, plus five-hour and Fable weekly limits when reported.
 - **Codex:** the longest window in the main Codex usage bucket, plus the account's ChatGPT plan.
+- **Cursor and Grok Bot (optional):** Cursor limits, reset times and on-demand spend, plus Grok Bot weekly usage, after you switch them on. See [how these readings are collected](docs/CURSOR-GROK-METRICS.md).
 - **Extra usage:** Claude's enabled state, monthly usage percentage and spending amounts when currency/scale are provided; Codex credit balances, monthly credit limits and available limit resets when reported. POM does not buy or redeem credits.
-- **Several indicators at once:** choose Claude, Fable and Codex individually in the menu bar. Switch between used and remaining percentages.
+- **Dashboard your way:** cards rearrange around the selected services, with a compact list, manual order and pinning. Choose separately what appears in the window and in the menu bar, and switch between used and remaining percentages. See [interface details](docs/USAGE-INTERFACE.md).
 - **Useful notifications:** configurable low-limit warnings and a notification when fresh data confirms that an exhausted limit has recovered.
-- **7- and 30-day token history:** two daily series, Claude and Codex, with totals across all models. Claude Code usage comes from this Mac; Codex usage comes from your account.
+- **7- and 30-day token history:** two daily series, Claude and Codex, with totals across all models, completed-week comparisons and JSON/CSV export. Claude Code usage comes from this Mac; Codex usage comes from your account.
 - **English and Lithuanian:** follows your Mac's primary language, with an immediate manual switch in Settings. Other system languages use English.
-- **Update checks:** Sparkle reads a signed update feed. For this unnotarized release it opens the download page; direct in-app installation is reserved for future notarized releases.
+- **Update checks:** POM checks a signed update feed and tells you when a newer version is out. Releases are not notarized yet, so it opens the download page instead of installing by itself.
 
 ![POM daily Claude and Codex token usage and period totals](docs/images/history-en.png)
 
@@ -56,16 +51,17 @@ Requires **macOS 14 Sonoma or later** and at least one installed, signed-in CLI:
 [Claude Code](https://code.claude.com/docs/en/overview) or [Codex](https://github.com/openai/codex).
 The optional Claude status-line bridge additionally needs `jq`. The Claude control protocol is version dependent (tested with Claude Code 2.1.263); older versions may need updating.
 
-**macOS warning:** releases through 2.2.3 are not notarized. This
+**macOS warning:** releases through 2.4.0 are not notarized. This
 can trigger a Gatekeeper warning on another Mac. A self-signed certificate does not
 solve that. Do not disable Gatekeeper or treat a malware warning as a routine install
 step. Use the [signing status above](#pom--claude--codex-usage-limits-for-macos) and
 [Apple's guidance](https://support.apple.com/en-us/102445) to identify the warning.
 
-Version 2.1.2 has no in-app updater. Download the 2.2.3 DMG and replace POM in
-Applications. **Check for Updates…** in 2.2.3 will check the signed feed; this
-release uses an informational link for manual download. EdDSA update signatures
-verify file integrity and do not replace Apple notarization.
+**Updating:** POM does not replace itself yet. From 2.2.1 on, it announces a newer version and
+**Check for Updates…** opens the download page. Download the DMG, quit POM and
+replace it in Applications; your settings and history stay. Version 2.1.2 and older
+have no update check at all, so download the current DMG the same way. EdDSA update
+signatures verify file integrity and do not replace Apple notarization.
 
 Codex recovery notifications require the backend to explicitly report that ordinary usage is allowed. If your CLI omits this field, POM does not claim that access has recovered from percentages alone.
 
@@ -117,7 +113,7 @@ and Apple's command line tools. `bash scripts/make-dmg.sh` creates a clearly mar
 **development** DMG. This does not make it a trusted public installer.
 
 See the [developer guide](claudedocs/README.md), [release signing guide](docs/RELEASING.md)
-and [2.2.3 release notes](docs/releases/2.2.3.md). Bug reports should include your macOS,
+and [2.4.0 release notes](docs/releases/2.4.0.md). Bug reports should include your macOS,
 POM and CLI versions plus the exact error text; omit credentials and private conversations.
 
 ## Support POM

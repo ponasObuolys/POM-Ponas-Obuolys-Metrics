@@ -184,3 +184,16 @@ ir paleistas, versija bei parašas patikrinti, binaras sutampa su dist paketu.
 Patikros: 411 branduolio, SwiftUI, 24 Companion duomenų patikros, 7/30 dienų
 JSON importas, 5 bridge ir 9 Apple preflight testai. Viešas leidimas ir žyma
 nekuriami; vartotojas patvirtino šių pakeitimų commit ir push.
+
+## 2026-11-24 · POM 2.4.0 viešas leidimas ir nuolatinė skelbimo tvarka
+
+Klientai skundėsi, kad programa neatsinaujina. Priežastis: viešas leidimas buvo
+2.2.3 (2026-09-06), o 2.3.0, 2.3.1 ir 2.4.0 parengtos tik vietoje. Naujinimų
+sąrašas rodė 2.2.3, todėl įdiegtos programos pagrįstai nieko nesiūlė. README
+vaizdai ir įžanga aprašė 2.4.0, nors atsisiunčiama buvo 2.2.3.
+
+Savininko sprendimas: kiekviena nauja versija skelbiama iškart, nenotarizuota ir
+aiškiai pažymėta, kartu atnaujinant README. Apple Developer narystė kol kas
+atidėta. Pridėtas `scripts/publish-unnotarized.sh`, tvarka aprašyta
+`docs/RELEASING.md`. LT ir EN README suvienodinti ir aprašo 2.4.0.
+

@@ -4,6 +4,7 @@ English
 1. Drag POM into Applications, then open it from Applications.
 2. Sign in to Claude Code and/or Codex CLI. POM reads their usage automatically.
 3. Click the menu bar indicators to see limits, credits and History.
+   Cursor and Grok Bot readings are optional and stay off until you switch them on.
 4. Open Settings to select indicators, alerts, Language and automatic updates.
 
 POM follows your Mac's language (Lithuanian or English; other languages use English).
@@ -18,13 +19,16 @@ Choose Not now or close the window to continue. All features stay free.
 https://buy.stripe.com/9B65kE4VZaDL5uI33F6Zy00
 
 If macOS blocks the app, confirm that it came from the official GitHub release.
-This 2.2.3 release and older releases are not Apple-notarized. Do not disable Gatekeeper.
+This 2.4.0 release and older releases are not Apple-notarized. Do not disable Gatekeeper.
+POM announces newer versions and opens the download page; replace POM in Applications
+with the new copy. It does not install updates by itself yet.
 See the current signing status and installation help in the repository README.
 
 Lietuviškai
 1. Nutempk POM į Applications aplanką ir paleisk iš jo.
 2. Prisijunk prie Claude Code ir (arba) Codex CLI. POM limitus perskaitys pati.
 3. Paspausk meniu juostos indikatorius: matysi limitus, kreditus ir istoriją.
+   Cursor ir Grok Bot rodmenys neprivalomi ir išjungti, kol jų neįjungi.
 4. Nustatymuose pasirink indikatorius, pranešimus, kalbą ir naujinimus.
 
 POM parenka kompiuterio kalbą. Ją galima iš karto pakeisti nustatymuose.
@@ -40,7 +44,9 @@ kartą per septynias dienas. Jį galima užverti arba pasirinkti Gal vėliau. Vi
 https://buy.stripe.com/9B65kE4VZaDL5uI33F6Zy00
 
 Jei macOS blokuoja programą, patikrink, ar ji gauta iš oficialaus GitHub leidimo.
-Šis 2.2.3 leidimas ir ankstesni leidimai Apple nenotarizuoti. Neišjunk Gatekeeper apsaugos.
+Šis 2.4.0 leidimas ir ankstesni leidimai Apple nenotarizuoti. Neišjunk Gatekeeper apsaugos.
+POM praneša apie naują versiją ir atveria atsisiuntimo puslapį. Naują programą nutempk
+į Applications vietoj senosios: pati programa naujinimų kol kas nediegia.
 Pasirašymo būsena ir diegimo pagalba pateikta projekto README.
 
 https://github.com/ponasObuolys/POM-Ponas-Obuolys-Metrics

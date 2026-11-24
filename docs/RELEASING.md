@@ -2,11 +2,30 @@
 
 ## Current state
 
-As checked on 2026-09-06, this Mac has **no valid Developer ID Application identity**.
-The published 2.2.3 DMG (like earlier releases) is ad-hoc signed. Its Gatekeeper warning cannot be fixed by
+As checked on 2026-11-24, this Mac has **no valid Developer ID Application identity**.
+The published 2.4.0 DMG (like earlier releases) is ad-hoc signed. Its Gatekeeper warning cannot be fixed by
 renaming the DMG, compiling again or creating another self-signed certificate.
-Manual publication without notarization was explicitly authorized for 2.2.1 and continued for the 2.2.2/2.2.3 support updates.
-A notarized release still requires Apple signing credentials.
+Publication without notarization was explicitly authorized for 2.2.1 and continued for 2.2.2/2.2.3.
+On 2026-11-24 the owner made it the standing rule: every new version is published this way
+as soon as it is prepared, until Apple signing credentials exist.
+
+## Publish a new version (unnotarized)
+
+Versions 2.3.0 and 2.3.1 were prepared but never published, so users stayed on 2.2.3
+and saw no update. A version change is finished only when the release is public.
+
+1. Raise `VERSION`, write `docs/releases/<version>.md`, and update both READMEs and
+   `docs/INSTALL.txt` so they describe the version people will download.
+2. Commit to `main`.
+3. Run `bash scripts/publish-unnotarized.sh`.
+
+The script refuses to continue with uncommitted changes, an already published tag or
+documents that do not mention the version. It runs the tests, builds the universal app
+and labelled DMG, signs and verifies the informational appcast, pushes `main` and the
+tag, creates the GitHub release and finally confirms that the live feed offers the
+new version. The Sparkle private key is read from the login Keychain; macOS may ask
+for permission. The tag also starts the signed-release workflow, which stops at the
+missing Apple credentials; that red run is expected and publishes nothing.
 
 The automated signed-release pipeline still requires Developer ID and notarization.
 The manual 2.2.x exception publishes a clearly labelled unnotarized DMG, its SHA-256

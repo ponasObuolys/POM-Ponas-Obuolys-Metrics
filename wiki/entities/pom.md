@@ -1,7 +1,7 @@
 ---
 type: entity
 created: 2026-09-06
-updated: 2026-09-06
+updated: 2026-11-24
 sources:
   - Package.swift
   - Sources/POMCore/ClaudeClient.swift
@@ -36,6 +36,9 @@ juos randa savo `Contents/Resources`, todėl kūrimo katalogas jai nereikalingas
 Versija skaitoma iš `VERSION`. Nuo 2.2 paketas universalus (arm64 + x86_64), į jį įdedama
 Sparkle biblioteka. `release.sh` reikalauja Developer ID, notarizuoja programą ir DMG,
 patikrina Gatekeeper, pasirašo appcast. Tik po to GitHub `v*` žymės eiga leidžia publikavimą.
+
+Kol nėra Developer ID, viešus leidimus skelbia `scripts/publish-unnotarized.sh`: nenotarizuotas
+DMG, kontrolinė suma ir pasirašytas informacinis appcast. Nuo 2026-11-24 taip skelbiama kiekviena nauja versija.
 
 Viešasis Sparkle raktas saugomas config/sparkle-public-key.txt; privatus yra macOS raktinėje,
 account lt.ponasobuolys.pom. Privatūs raktai į Git neįtraukiami.
