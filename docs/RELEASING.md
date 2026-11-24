@@ -19,6 +19,18 @@ and saw no update. A version change is finished only when the release is public.
 2. Commit to `main`.
 3. Run `bash scripts/publish-unnotarized.sh`.
 
+On this Mac (checked 2026-11-24 for 2.4.0) the default toolchain needs two overrides:
+the 27.2 SDK lacks a SwiftUI macro plugin, and the default build system places both CPU
+builds in one folder, so `bundle.sh` cannot merge them.
+
+```bash
+POM_BUILD_SYSTEM=native POM_BUILD_SDK=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk \
+  bash scripts/publish-unnotarized.sh
+```
+
+Swift reports `--build-system native` as deprecated; when it is removed, `bundle.sh`
+must locate each architecture's output under the default build system.
+
 The script refuses to continue with uncommitted changes, an already published tag or
 documents that do not mention the version. It runs the tests, builds the universal app
 and labelled DMG, signs and verifies the informational appcast, pushes `main` and the
