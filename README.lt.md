@@ -26,7 +26,7 @@ bei papildomus kreditus.
 - **Pranešimai:** pasirenkamos perspėjimų ribos ir pranešimas, kai nauji duomenys patvirtina išnaudoto limito atsistatymą.
 - **7 ir 30 dienų tokenų istorija:** dvi dienos kreivės, Claude ir Codex, visų modelių sumos, užbaigtų savaičių palyginimas ir JSON/CSV eksportas. Claude Code naudojimas skaitomas iš šio Mac, Codex naudojimas gaunamas iš paskyros.
 - **Lietuvių ir anglų kalbos:** automatinis parinkimas pagal kompiuterio pagrindinę kalbą ir perjungimas nustatymuose. Kitoms sistemos kalboms parenkama anglų.
-- **Naujinimų patikra:** POM tikrina pasirašytą naujinimų sąrašą ir praneša, kai pasirodo naujesnė versija. Leidimai dar nenotarizuoti, todėl programa atveria atsisiuntimo puslapį, o pati naujinimo nediegia.
+- **Naujinimai programoje:** POM tikrina pasirašytą naujinimų sąrašą, praneša apie naujesnę versiją ir ją įdiegia vienu paspaudimu.
 
 ![POM naudojimo istorija](docs/images/history-lt.png)
 
@@ -53,12 +53,13 @@ kompiuteryje juos gali blokuoti Gatekeeper. Savadarbis sertifikatas to neišspre
 Neišjunk Gatekeeper apsaugos. Tikslų perspėjimą įvertink pagal
 [Apple paaiškinimą](https://support.apple.com/en-us/102445).
 
-**Atnaujinimas:** POM pati savęs kol kas nepakeičia. Nuo 2.2.1 versijos ji praneša
-apie naujesnę versiją, o **Ieškoti naujinimų…** atveria atsisiuntimo puslapį.
-Atsisiųsk DMG, uždaryk POM ir pakeisk programą Applications aplanke. Nustatymai ir
-istorija išlieka. 2.1.2 ir senesnėse versijose naujinimų patikros nėra, todėl naują
-DMG atsisiųsk tokiu pat būdu. EdDSA parašai patvirtina failų vientisumą, tačiau
-neatstoja Apple notarizacijos.
+**Atnaujinimas:** nuo 2.2.1 versijos POM pati praneša apie naujesnę versiją; patikrą
+gali paleisti ir nustatymuose pasirinkęs **Ieškoti naujinimų…**. Paspausk **Install Update**:
+POM atsisiųs naują versiją, patikrins jos parašą ir pasileis iš naujo. Nustatymai ir
+istorija išlieka. Tame pačiame lange galima įjungti automatinį vėlesnių versijų diegimą.
+2.1.2 ir senesnėse versijose naujinimų patikros nėra, todėl vieną kartą atsisiųsk naują
+DMG ir pakeisk programą Applications aplanke. EdDSA parašai patvirtina failų vientisumą,
+tačiau neatstoja Apple notarizacijos.
 
 Codex atsistatymo pranešimui reikia aiškaus serverio patvirtinimo, kad įprastas naudojimas vėl leidžiamas. Jei tavo CLI šio lauko nepateikia, POM nesiunčia tokio pranešimo vien pagal procentus.
 

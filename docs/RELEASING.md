@@ -11,6 +11,12 @@ as soon as it is prepared, until Apple signing credentials exist.
 
 ## Publish a new version (unnotarized)
 
+Since 2026-11-24 the feed offers in-app installation instead of an informational link
+(owner's decision). Sparkle accepts the ad-hoc signed app because the archive carries a
+valid EdDSA signature. Verified locally with isolated copies: the published 2.2.3 app
+updated to the 2.4.0 contents and relaunched after one click on **Install Update**.
+The 2.2.x feeds described above were informational.
+
 Versions 2.3.0 and 2.3.1 were prepared but never published, so users stayed on 2.2.3
 and saw no update. A version change is finished only when the release is public.
 
@@ -33,7 +39,7 @@ must locate each architecture's output under the default build system.
 
 The script refuses to continue with uncommitted changes, an already published tag or
 documents that do not mention the version. It runs the tests, builds the universal app
-and labelled DMG, signs and verifies the informational appcast, pushes `main` and the
+and labelled DMG, signs and verifies the appcast, pushes `main` and the
 tag, creates the GitHub release and finally confirms that the live feed offers the
 new version. The Sparkle private key is read from the login Keychain; macOS may ask
 for permission. The tag also starts the signed-release workflow, which stops at the

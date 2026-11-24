@@ -20,8 +20,7 @@ https://buy.stripe.com/9B65kE4VZaDL5uI33F6Zy00
 
 If macOS blocks the app, confirm that it came from the official GitHub release.
 This 2.4.0 release and older releases are not Apple-notarized. Do not disable Gatekeeper.
-POM announces newer versions and opens the download page; replace POM in Applications
-with the new copy. It does not install updates by itself yet.
+POM announces newer versions and installs them after you click Install Update.
 See the current signing status and installation help in the repository README.
 
 Lietuviškai
@@ -45,8 +44,7 @@ https://buy.stripe.com/9B65kE4VZaDL5uI33F6Zy00
 
 Jei macOS blokuoja programą, patikrink, ar ji gauta iš oficialaus GitHub leidimo.
 Šis 2.4.0 leidimas ir ankstesni leidimai Apple nenotarizuoti. Neišjunk Gatekeeper apsaugos.
-POM praneša apie naują versiją ir atveria atsisiuntimo puslapį. Naują programą nutempk
-į Applications vietoj senosios: pati programa naujinimų kol kas nediegia.
+POM praneša apie naują versiją ir ją įdiegia paspaudus Install Update.
 Pasirašymo būsena ir diegimo pagalba pateikta projekto README.
 
 https://github.com/ponasObuolys/POM-Ponas-Obuolys-Metrics

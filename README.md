@@ -30,7 +30,7 @@ reset times and extra credits into one small window.
 - **Useful notifications:** configurable low-limit warnings and a notification when fresh data confirms that an exhausted limit has recovered.
 - **7- and 30-day token history:** two daily series, Claude and Codex, with totals across all models, completed-week comparisons and JSON/CSV export. Claude Code usage comes from this Mac; Codex usage comes from your account.
 - **English and Lithuanian:** follows your Mac's primary language, with an immediate manual switch in Settings. Other system languages use English.
-- **Update checks:** POM checks a signed update feed and tells you when a newer version is out. Releases are not notarized yet, so it opens the download page instead of installing by itself.
+- **Updates in the app:** POM checks a signed update feed, tells you when a newer version is out and installs it after one click.
 
 ![POM daily Claude and Codex token usage and period totals](docs/images/history-en.png)
 
@@ -57,10 +57,11 @@ solve that. Do not disable Gatekeeper or treat a malware warning as a routine in
 step. Use the [signing status above](#pom--claude--codex-usage-limits-for-macos) and
 [Apple's guidance](https://support.apple.com/en-us/102445) to identify the warning.
 
-**Updating:** POM does not replace itself yet. From 2.2.1 on, it announces a newer version and
-**Check for Updates…** opens the download page. Download the DMG, quit POM and
-replace it in Applications; your settings and history stay. Version 2.1.2 and older
-have no update check at all, so download the current DMG the same way. EdDSA update
+**Updating:** from 2.2.1 on, POM announces a newer version by itself; you can also choose
+**Check for Updates…** in Settings. Click **Install Update**: POM downloads the new version,
+verifies its signature and restarts. Your settings and history stay. The update window can
+also switch on automatic installation of later versions. Version 2.1.2 and older have no
+update check, so download the current DMG once and replace POM in Applications. EdDSA update
 signatures verify file integrity and do not replace Apple notarization.
 
 Codex recovery notifications require the backend to explicitly report that ordinary usage is allowed. If your CLI omits this field, POM does not claim that access has recovered from percentages alone.

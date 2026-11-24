@@ -1,7 +1,7 @@
 #!/bin/bash
 # Publish the current VERSION as a clearly labelled unnotarized GitHub release:
-# universal DMG, checksum and a signed informational appcast. Existing installs
-# then see the new version and are sent to the release page for manual download.
+# universal DMG, checksum and a signed appcast. Existing installs (2.2.1 and later)
+# then offer the new version and install it in the app after the user agrees.
 # Notarized releases use release.sh instead.
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -51,17 +51,19 @@ import html, sys
 title = open(sys.argv[1], encoding="utf-8").readline().lstrip("# ").strip()
 open(sys.argv[2], "w", encoding="utf-8").write(
     f"<h2>{html.escape(title)}</h2>"
-    "<p><strong>Not Apple-notarized.</strong> Download the DMG from the release page, quit POM "
-    "and replace it in Applications. macOS may block the first launch.</p>"
-    "<p><strong>Lietuviškai:</strong> leidimas Apple nenotarizuotas. Atsisiųsk DMG iš leidimo puslapio, "
-    "uždaryk POM ir pakeisk programą Applications aplanke. macOS gali blokuoti pirmą paleidimą.</p>")
+    "<p>Install Update downloads the new version, verifies its signature and restarts POM. "
+    "Your settings and history stay. This release is not Apple-notarized.</p>"
+    "<p><strong>Lietuviškai:</strong> paspaudus Install Update, POM atsisiunčia naują versiją, "
+    "patikrina jos parašą ir pasileidžia iš naujo. Nustatymai ir istorija išlieka. "
+    "Leidimas Apple nenotarizuotas.</p>")
 PY
 .build/artifacts/sparkle/Sparkle/bin/generate_appcast --account lt.ponasobuolys.pom \
   --download-url-prefix "$repo_url/releases/download/$tag/" --link "$repo_url/releases/tag/$tag" \
-  --informational-update-versions "" --embed-release-notes --maximum-deltas 0 "$updates"
+  --embed-release-notes --maximum-deltas 0 "$updates"
 cp "$updates/appcast.xml" dist/appcast.xml
 python3 scripts/verify-appcast.py "$root/dist/appcast.xml" "$root/$dmg" "$version"
-grep -q '<sparkle:informationalUpdate>' dist/appcast.xml || fail "the feed is not marked informational."
+# An informational feed only opens the release page; users then stay on old versions.
+if grep -q '<sparkle:informationalUpdate>' dist/appcast.xml; then fail "the feed must offer in-app installation."; fi
 (cd dist && shasum -a 256 "POM-$version.dmg" > "POM-$version.dmg.sha256")
 
 git tag -a "$tag" -m "POM $version"

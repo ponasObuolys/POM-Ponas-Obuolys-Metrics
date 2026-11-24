@@ -197,3 +197,12 @@ aiškiai pažymėta, kartu atnaujinant README. Apple Developer narystė kol kas
 atidėta. Pridėtas `scripts/publish-unnotarized.sh`, tvarka aprašyta
 `docs/RELEASING.md`. LT ir EN README suvienodinti ir aprašo 2.4.0.
 
+## 2026-11-24 · Naujinimai diegiami pačioje programoje
+
+Savininko sprendimu naujinimų sąrašas nebežymimas informaciniu: programa siūlo
+naujinimą įdiegti, o ne tik atveria atsisiuntimo puslapį. Sparkle priima ad-hoc
+pasirašytą programą, nes archyvas turi galiojantį EdDSA parašą. Vietinis bandymas
+su izoliuotomis kopijomis: vieša 2.2.3 vienu **Install Update** paspaudimu
+atsinaujino į 2.4.0 turinį ir pasileido iš naujo. Pakeistas v2.4.0 leidimo
+`appcast.xml` (DMG nekeistas) ir `scripts/publish-unnotarized.sh`.
+
