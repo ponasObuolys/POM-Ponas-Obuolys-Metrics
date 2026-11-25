@@ -122,8 +122,34 @@ atsistatymo laikmatis savaime nepaverčia naudojimo nuliu.
 
 Grok Bot ir Cursor gali dalintis bendru planu. POM rodo kiekvienos programos
 reikšmes, jų nesumuoja. Paslaugos pasirenkamos per **Paslaugos** lango viršuje
-arba **Nustatymai → Rodomos paslaugos**. Suvestinės kortelės ir meniu juostos indikatoriai pasirenkami atskirai. Šie šaltiniai nepridedami prie Claude/Codex tokenų istorijos
+arba **Nustatymai → Rodomos paslaugos**. Suvestinės kortelės ir meniu juostos indikatoriai pasirenkami atskirai. Šie šaltiniai nepridedami prie Claude/Codex tokenų sumų
 ir nesiunčia atskirų pranešimų apie limitus.
+
+### Dienos istorija (nuo 2.4.2)
+
+Įjungus **Grok Bot iš serverio**, istorijos langas kas 15 min. siunčia dar vieną
+tik skaitymo užklausą `GetGrokBotUsageBreakdown` tuo pačiu prisijungimu ir tomis
+pačiomis taisyklėmis (raktas neišsaugomas, prisijungimas neatnaujinamas). Išjungus
+nustatymą užklausos nesiunčiamos, sukaupti duomenys lieka.
+
+Asmeniniam planui serveris grąžina `weeklyLimitPpm`: kiekvienos UTC dienos dalį nuo
+savaitės limito milijoninėmis dalimis, suskirstytą pagal šaltinį (agentas,
+automatizacija, vartotojas) ir pagal botą. POM sudeda dienos šaltinius, botų
+identifikatorių neskaito ir nesaugo. **Tokenų Grok Bot nepateikia**:
+`GetDailySpendByCategory`, kurį programa naudoja įmonių planams, asmeninei paskyrai
+2026-11-25 grąžino tuščią atsakymą. Todėl istorija rodoma procentais atskirame
+stulpelių grafike, ne tokenų ašyje.
+
+Serveris pateikia tik einamąją savaitę, tad ankstesnes POM kaupia pati:
+`~/Library/Application Support/POM/grok-bot-days.json`, 30 dienų, su paskyros
+atspaudu (pasikeitus paskyrai istorija pradedama iš naujo). Limito atsistatymo
+diena priklauso dviem savaitėms, jos dalys sudedamos. Planai, kuriems serveris
+grąžina pinigines (`billedCents`) ar atsiskaitymo ciklo (`billingCyclePpm`) dalis,
+laikomi neprieinamais, nes vienetai kiti.
+
+2026-11-25 gyva patikra su tikra paskyra: šešių dienų dalys kartu sudarė 84,5 %,
+tuo pat metu `GetSandUsageStatus` rodė 88,7 % (skirtumą lemia serverio
+apvalinimas ir vėlavimas, POM jo netaiso). Raktas nebuvo rodomas ar išsaugotas.
 
 ## Piktogramos
 

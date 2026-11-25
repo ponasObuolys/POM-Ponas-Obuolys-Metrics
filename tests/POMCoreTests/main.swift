@@ -39,7 +39,7 @@ if ProcessInfo.processInfo.environment["POM_TOKEN_BENCHMARK"] == "1" {
         while true {
             let batch = try index.scanBatch()
             read += batch.bytesRead; batches += 1
-            if batch.complete { print("BENCH import bytes=\(read) batches=\(batches) seconds=\(ProcessInfo.processInfo.systemUptime-start) days=\(batch.snapshot.days.count) skipped=\(batch.skippedLines)"); break }
+            if batch.complete { print("BENCH import bytes=\(read) batches=\(batches) seconds=\(ProcessInfo.processInfo.systemUptime-start) days=\(batch.snapshot.days.count) skipped=\(batch.skippedLines) total7=\(batch.snapshot.total(days: 7)) fable7=\(batch.fable.total(days: 7))"); break }
         }
         let idleStart = ProcessInfo.processInfo.systemUptime
         try index.begin()
@@ -1158,7 +1158,122 @@ do {
     let missing = try ClaudeTokenIndexer(root: dir.appendingPathComponent("absent"), database: dir.appendingPathComponent("missing.sqlite"))
     try missing.begin(now: now)
     check("tokens: missing sessions unavailable, not invented zero", try !missing.scanBatch(now: now).available)
+
+    // Fable and Mythos share one limit, so their tokens form one separate series.
+    let modelRoot = dir.appendingPathComponent("models")
+    try FileManager.default.createDirectory(at: modelRoot, withIntermediateDirectories: true)
+    func modelRecord(_ id: String, model: String?, output: Int) -> Data {
+        let field = model.map { "\"model\":\"\($0)\"," } ?? ""
+        return Data("{\"type\":\"assistant\",\"timestamp\":\"2026-09-06T10:00:00.000Z\",\"message\":{\"id\":\"\(id)\",\(field)\"usage\":{\"input_tokens\":0,\"output_tokens\":\(output)}}}\n".utf8)
+    }
+    let modelFile = modelRoot.appendingPathComponent("models.jsonl")
+    try (modelRecord("fable", model: "claude-fable-5-2", output: 100) + modelRecord("mythos", model: "claude-mythos-5-2", output: 20)
+         + modelRecord("opus", model: "claude-opus-5-5", output: 3) + modelRecord("unknown", model: nil, output: 4)
+         + modelRecord("fable", model: "claude-fable-5-2", output: 110)).write(to: modelFile)
+    let modelDatabase = dir.appendingPathComponent("models.sqlite")
+    var models: ClaudeTokenIndexer? = try ClaudeTokenIndexer(root: modelRoot, database: modelDatabase)
+    try models!.begin(now: now)
+    let split = try finish(models!)
+    checkEqual("tokens: all models stay in the Claude total", split.snapshot.total(days: 7, now: now), 137)
+    checkEqual("tokens: Fable and Mythos counted separately", split.fable.total(days: 7, now: now), 130)
+    check("tokens: model family names", ClaudeTokenIndexer.isFableFamily("claude-mythos-5-2") && ClaudeTokenIndexer.isFableFamily("Claude-Fable-5")
+          && !ClaudeTokenIndexer.isFableFamily("claude-opus-5-5") && !ClaudeTokenIndexer.isFableFamily(nil))
+
+    // An unreadable record warns only while its file still contains it.
+    let broken = Data("{\"type\":\"assistant\",\"timestamp\":\"2026-09-06T10:00:00.000Z\",\"message\":{\"usage\":{\"output_tokens\":5}}}\n".utf8)
+    let warned = modelRoot.appendingPathComponent("warned.jsonl")
+    try (broken + modelRecord("kept", model: "claude-opus-5-5", output: 1)).write(to: warned)
+    try models!.begin(now: now)
+    checkEqual("tokens: unreadable record warned", try finish(models!).skippedLines, 1)
+    models = nil; models = try ClaudeTokenIndexer(root: modelRoot, database: modelDatabase)
+    try models!.begin(now: now)
+    checkEqual("tokens: warning survives restart", try finish(models!).skippedLines, 1)
+    try (modelRecord("kept", model: "claude-opus-5-5", output: 1) + modelRecord("later", model: "claude-opus-5-5", output: 2)).write(to: warned, options: .atomic)
+    try models!.begin(now: now)
+    let repaired = try finish(models!)
+    checkEqual("tokens: warning ends with the unreadable record", repaired.skippedLines, 0)
+    checkEqual("tokens: repaired file keeps totals", repaired.snapshot.total(days: 7, now: now), 140)
+    try FileManager.default.removeItem(at: warned)
+    try broken.write(to: warned)
+    try models!.begin(now: now)
+    checkEqual("tokens: warning returns with a new unreadable record", try finish(models!).skippedLines, 1)
+    // Files are aged by their real modification time, not by the fixture clock.
+    let afterRetention = Date().addingTimeInterval(60 * 86400)
+    try models!.begin(now: afterRetention)
+    checkEqual("tokens: warning expires with its file", try models!.scanBatch(now: afterRetention).skippedLines, 0)
+    models = nil
+
+    // Indexes written before 2.4.2 know neither models nor which file warned.
+    let legacyDatabase = dir.appendingPathComponent("legacy.sqlite")
+    var legacy: OpaquePointer?
+    check("tokens: legacy fixture opens", sqlite3_open(legacyDatabase.path, &legacy) == SQLITE_OK)
+    check("tokens: legacy fixture written", sqlite3_exec(legacy, """
+        CREATE TABLE files (key TEXT PRIMARY KEY, inode INTEGER, offset INTEGER, size INTEGER, modified REAL, discarding INTEGER);
+        CREATE TABLE messages (key TEXT PRIMARY KEY, day TEXT NOT NULL, tokens INTEGER NOT NULL);
+        CREATE TABLE metadata (key TEXT PRIMARY KEY, value INTEGER);
+        INSERT INTO metadata VALUES('skipped', 11);
+        INSERT INTO messages VALUES('stale', '2026-09-06', 999);
+        """, nil, nil, nil) == SQLITE_OK)
+    sqlite3_close(legacy)
+    try FileManager.default.removeItem(at: warned)
+    let upgraded = try ClaudeTokenIndexer(root: modelRoot, database: legacyDatabase)
+    try upgraded.begin(now: now)
+    let rebuilt = try finish(upgraded)
+    checkEqual("tokens: old index rebuilt from sessions", rebuilt.snapshot.total(days: 7, now: now), 137)
+    checkEqual("tokens: rebuilt index knows models", rebuilt.fable.total(days: 7, now: now), 130)
+    checkEqual("tokens: stale warning dropped on rebuild", rebuilt.skippedLines, 0)
 } catch { failures.append("token history: \(error)") }
+
+// MARK: - Grok Bot dienos limito dalys
+
+do {
+    let now = Date(timeIntervalSince1970: 1_795_640_000) // 2026-11-25 UTC
+    let start: Int64 = 1_795_190_473_464                // 2026-11-20 16:01 UTC
+    func body(_ rows: String, start: String = "\"1795190473464\"") -> Data {
+        Data("{\"weeklyLimitPpm\":{\"periodStartMs\":\(start),\"periodEndMs\":\"1795795273464\",\"bySource\":[\(rows)],\"byBot\":[]}}".utf8)
+    }
+    let period = try GrokBotDailyUsage.parse(body("""
+        {"dayMs":"1795132800000","source":"GROK_BOT_USAGE_SOURCE_AGENT","ppm":116731},
+        {"dayMs":"1795132800000","source":"GROK_BOT_USAGE_SOURCE_USER","ppm":20404},
+        {"dayMs":"1795219200000","source":"GROK_BOT_USAGE_SOURCE_USER"},
+        {"dayMs":1795305600000,"source":"GROK_BOT_USAGE_SOURCE_USER","ppm":98375}
+        """), now: now)
+    checkEqual("grok days: period start", period.startMs, start)
+    checkEqual("grok days: sources added per UTC day", period.days["2026-11-20"], 137_135)
+    checkEqual("grok days: omitted share is zero", period.days["2026-11-21"], 0)
+    checkEqual("grok days: numeric timestamps accepted", period.days["2026-11-22"], 98_375)
+    checkEqual("grok days: unused week is valid", try GrokBotDailyUsage.parse(body(""), now: now).days.count, 0)
+    for invalid in [#"{}"#, #"{"billedCents":{"periodStartMs":"1795190473464","bySource":[]}}"#,
+                    #"{"billingCyclePpm":{"periodStartMs":"1795190473464","bySource":[]}}"#,
+                    #"{"weeklyLimitPpm":{"bySource":[]}}"#] {
+        check("grok days: other units stay unavailable", (try? GrokBotDailyUsage.parse(Data(invalid.utf8), now: now)) == nil)
+    }
+    for rows in [#"{"dayMs":"1795132800000","ppm":-1}"#, #"{"ppm":5}"#, #"{"dayMs":"1790000000000","ppm":5}"#,
+                 #"{"dayMs":"1799000000000","ppm":5}"#, #"{"dayMs":"soon","ppm":5}"#] {
+        check("grok days: implausible rows rejected", (try? GrokBotDailyUsage.parse(body(rows), now: now)) == nil)
+    }
+    check("grok days: future period rejected", (try? GrokBotDailyUsage.parse(body("", start: "\"1799000000000\""), now: now)) == nil)
+
+    var usage = GrokBotDailyUsage(identity: "account", updatedAt: now.addingTimeInterval(-600))
+    // The reset day keeps the part used before the reset as well.
+    usage.merge(.init(startMs: start - 7 * 86_400_000, days: ["2026-11-19": 50_000, "2026-11-20": 30_000, "2026-10-01": 9]), now: now)
+    usage.merge(period, now: now)
+    checkClose("grok days: reset day adds both periods", usage.percentages(days: 7, now: now)["2026-11-20"] ?? -1, 16.7135)
+    checkClose("grok days: finished week kept", usage.percentages(days: 7, now: now)["2026-11-19"] ?? -1, 5)
+    check("grok days: days beyond retention dropped", usage.shares.allSatisfy { $0.day >= "2026-10-27" })
+    usage.merge(.init(startMs: start, days: ["2026-11-20": 140_000]), now: now)
+    checkClose("grok days: newer reading replaces its period", usage.percentages(days: 7, now: now)["2026-11-20"] ?? -1, 17)
+    check("grok days: replaced period leaves no stale days", usage.percentages(days: 7, now: now)["2026-11-22"] == nil)
+    checkClose("grok days: total", usage.total(days: 7, now: now), 22)
+    checkEqual("grok days: first collected day", usage.firstDay, "2026-11-19")
+    checkEqual("grok days: update time", usage.updatedAt, now)
+    let saved = FileManager.default.temporaryDirectory.appendingPathComponent("pom-grok-days-\(UUID().uuidString).json")
+    defer { try? FileManager.default.removeItem(at: saved) }
+    try JSONEncoder().encode(usage).write(to: saved)
+    checkEqual("grok days: saved history restored", GrokBotDailyUsage.load(from: saved), usage)
+    try Data(repeating: 32, count: GrokBotDailyUsage.maximumBytes + 1).write(to: saved)
+    check("grok days: oversized file ignored", GrokBotDailyUsage.load(from: saved) == nil)
+} catch { failures.append("grok daily usage: \(error)") }
 
 // MARK: - Paramos priminimų dažnis ir versijų kaita
 

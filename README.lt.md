@@ -6,11 +6,12 @@ bei papildomus kreditus.
 
 [English](README.md) · [Atsisiųsti](https://github.com/ponasObuolys/POM-Ponas-Obuolys-Metrics/releases) · [Diegimo pagalba](docs/INSTALL.txt)
 
-> **[POM 2.4.1 paskelbta](https://github.com/ponasObuolys/POM-Ponas-Obuolys-Metrics/releases/tag/v2.4.1)** Apple silicon ir Intel kompiuteriams.
-> Ištaisyta klaida, dėl kurios Grok Bot ir Cursor limitai atsinaujindavo tik atidarius Cursor programą.
+> **[POM 2.4.2 paskelbta](https://github.com/ponasObuolys/POM-Ponas-Obuolys-Metrics/releases/tag/v2.4.2)** Apple silicon ir Intel kompiuteriams.
+> Istorijoje atskirai matomi Fable ir Mythos tokenai, pridėta Grok Bot dienos dalis nuo
+> savaitės limito, o datos po grafiku vėl stovi tiksliai po savo taškais.
 > Nauja po 2.2.3: Cursor ir Grok Bot limitai, persitvarkanti suvestinė su kompaktišku vaizdu,
-> savaičių palyginimas ir JSON/CSV eksportas istorijoje. Žr. [2.4.1](docs/releases/2.4.1.md)
-> ir [2.4.0](docs/releases/2.4.0.md) leidimų aprašymus.
+> savaičių palyginimas ir JSON/CSV eksportas istorijoje. Žr. [2.4.2](docs/releases/2.4.2.md),
+> [2.4.1](docs/releases/2.4.1.md) ir [2.4.0](docs/releases/2.4.0.md) leidimų aprašymus.
 >
 > Šis leidimas **Apple nenotarizuotas**, programos parašas yra ad-hoc. macOS gali
 > blokuoti pirmą paleidimą. Developer ID pasirašymas ir notarizacija dar neatlikti.
@@ -25,7 +26,7 @@ bei papildomus kreditus.
 - **Papildomas naudojimas:** Claude mėnesio naudojimas bei sumos, kai pateikiama valiuta ir jos tikslumas; Codex kreditų likutis, mėnesio kreditų limitas ir galimi limito atkūrimai. Kreditai automatiškai neperkami ir nenaudojami.
 - **Suvestinė pagal tave:** kortelės persitvarko pagal pasirinktas paslaugas, yra kompaktiškas sąrašas, rankinė tvarka ir prisegimas. Atskirai pasirenki, ką rodyti lange ir ką meniu juostoje, ir ar matyti sunaudotą dalį, ar likutį. Žr. [sąsajos aprašymą](docs/USAGE-INTERFACE.md) (anglų k.).
 - **Pranešimai:** pasirenkamos perspėjimų ribos ir pranešimas, kai nauji duomenys patvirtina išnaudoto limito atsistatymą.
-- **7 ir 30 dienų tokenų istorija:** dvi dienos kreivės, Claude ir Codex, visų modelių sumos, užbaigtų savaičių palyginimas ir JSON/CSV eksportas. Claude Code naudojimas skaitomas iš šio Mac, Codex naudojimas gaunamas iš paskyros.
+- **7 ir 30 dienų istorija:** Claude ir Codex dienos tokenai su visų modelių sumomis, atskira Fable ir Mythos kreivė (Claude sumos dalis), užbaigtų savaičių palyginimas ir JSON/CSV eksportas. Claude Code naudojimas skaitomas iš šio Mac, Codex naudojimas gaunamas iš paskyros. Įjungus Grok Bot skaitymą iš serverio, atskiras grafikas rodo, kokia savaitės limito dalis sunaudota kiekvieną dieną (tokenų Grok Bot neskelbia).
 - **Lietuvių ir anglų kalbos:** automatinis parinkimas pagal kompiuterio pagrindinę kalbą ir perjungimas nustatymuose. Kitoms sistemos kalboms parenkama anglų.
 - **Naujinimai programoje:** POM tikrina pasirašytą naujinimų sąrašą, praneša apie naujesnę versiją ir ją įdiegia vienu paspaudimu.
 
@@ -49,7 +50,7 @@ Reikia macOS 14 ar naujesnės ir bent vienos įdiegtos bei prie paskyros prijung
 Pasirenkamam Claude būsenos juostos tiltui reikia `jq`. Claude sąsaja priklauso nuo
 CLI versijos; patikrinta su 2.1.263.
 
-**macOS perspėjimas:** leidimai iki 2.4.1 imtinai nenotarizuoti, todėl kitame
+**macOS perspėjimas:** leidimai iki 2.4.2 imtinai nenotarizuoti, todėl kitame
 kompiuteryje juos gali blokuoti Gatekeeper. Savadarbis sertifikatas to neišsprendžia.
 Neišjunk Gatekeeper apsaugos. Tikslų perspėjimą įvertink pagal
 [Apple paaiškinimą](https://support.apple.com/en-us/102445).
@@ -94,10 +95,12 @@ Paskutiniai limitai ir 30 dienų tokenų metaduomenys saugomi `~/Library/Applica
 Claude sesijos skaitomos vietoje, iš jų paimami tik skaitikliai. Indekse yra maišos
 funkcija paslėpti įrašų bei failų identifikatoriai, skaitymo pozicijos, datos ir sumos.
 Pokalbių tekstas ir prieigos raktai nesaugomi. Codex istorija gaunama per prisijungtą
-CLI ir išsaugoma šiame Mac. POM nesiunčia istorijos ir neturi analitikos.
+CLI ir išsaugoma šiame Mac. Grok Bot dienos limito dalys 30 dienų laikomos faile
+`grok-bot-days.json`. POM nesiunčia istorijos ir neturi analitikos.
 Norint pašalinti podėlį, reikia uždaryti POM ir iš šio aplanko pašalinti tik
-`claude-token-index.sqlite`, `claude-tokens.json` bei `codex-tokens.json`.
-Kitą kartą paleidus programą, duomenys bus surinkti iš naujo.
+`claude-token-index.sqlite`, `claude-tokens.json`, `claude-fable-tokens.json` bei `codex-tokens.json`.
+Kitą kartą paleidus programą, duomenys bus surinkti iš naujo. Pašalinus `grok-bot-days.json`,
+dingsta ankstesnės Grok Bot savaitės, kurių serveris nebepateikia.
 
 ## Kūrimas
 
@@ -114,7 +117,7 @@ bash scripts/install.sh
 patikimas viešas diegimo paketas.
 
 Žr. [kūrėjo aprašymą](claudedocs/README.md), [pasirašymo ir skelbimo instrukciją](docs/RELEASING.md)
-bei [2.4.1 leidimo aprašymą](docs/releases/2.4.1.md). Pranešdamas apie klaidą nurodyk
+bei [2.4.2 leidimo aprašymą](docs/releases/2.4.2.md). Pranešdamas apie klaidą nurodyk
 macOS, POM ir CLI versijas bei tikslų klaidos tekstą. Prisijungimo duomenų ir
 privačių pokalbių nepridėk.
 

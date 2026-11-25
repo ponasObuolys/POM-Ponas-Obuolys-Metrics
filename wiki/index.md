@@ -1,7 +1,7 @@
 ---
 type: synthesis
 created: 2026-09-06
-updated: 2026-10-18
+updated: 2026-11-25
 sources:
   - wiki/synthesis/cursor-grok-metrics.md
   - 2d8358e

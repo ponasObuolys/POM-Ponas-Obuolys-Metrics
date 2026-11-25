@@ -3,7 +3,7 @@
 ## Current state
 
 As checked on 2026-11-24, this Mac has **no valid Developer ID Application identity**.
-The published 2.4.1 DMG (like earlier releases) is ad-hoc signed. Its Gatekeeper warning cannot be fixed by
+The published 2.4.2 DMG (like earlier releases) is ad-hoc signed. Its Gatekeeper warning cannot be fixed by
 renaming the DMG, compiling again or creating another self-signed certificate.
 Publication without notarization was explicitly authorized for 2.2.1 and continued for 2.2.2/2.2.3.
 On 2026-11-24 the owner made it the standing rule: every new version is published this way

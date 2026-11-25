@@ -6,6 +6,8 @@ sources:
   - Sources/POMCore/CursorClient.swift
   - Sources/POMCore/GrokBotCache.swift
   - Sources/POMCore/GrokBotSession.swift
+  - Sources/POMCore/GrokBotDailyUsage.swift
+  - Sources/POM/HistoryService.swift
   - Sources/POM/AdditionalUsageViewModel.swift
   - Sources/POM/AdditionalUsageSection.swift
   - Sources/POM/ProviderMarkView.swift
@@ -111,3 +113,7 @@ Paskyros tapatybė nustatoma pagal rakto `sub`, ne pagal patį raktą.
 450 branduolio patikrų ir SwiftUI patikros praėjo. Tikra patikra uždarius abi
 programas: prieš pataisymą Cursor prisijungimas neperskaitomas, po jo perskaityti
 abu, paskyra ta pati, serveris grąžino savaitės limitą.
+
+## Grok Bot dienos istorija (2.4.2)
+
+`GetGrokBotUsageBreakdown` asmeniniam planui grąžina `weeklyLimitPpm`: dienos dalį nuo savaitės limito (milijoninėmis dalimis), tik einamajai savaitei. Tokenų serveris neduoda (`GetDailySpendByCategory` asmeninei paskyrai 2026-11-25 grįžo tuščias). POM sudeda dienos šaltinius, kaupia savaites 30 dienų `grok-bot-days.json` ir rodo procentus atskirame stulpelių grafike. Užklausa siunčiama tik įjungus **Grok Bot iš serverio**. Šaltiniai: `GrokBotDailyUsage.swift`, `HistoryService.swift`, `docs/CURSOR-GROK-METRICS.md`.

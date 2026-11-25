@@ -19,7 +19,7 @@ Choose Not now or close the window to continue. All features stay free.
 https://buy.stripe.com/9B65kE4VZaDL5uI33F6Zy00
 
 If macOS blocks the app, confirm that it came from the official GitHub release.
-This 2.4.1 release and older releases are not Apple-notarized. Do not disable Gatekeeper.
+This 2.4.2 release and older releases are not Apple-notarized. Do not disable Gatekeeper.
 POM announces newer versions and installs them after you click Install Update.
 See the current signing status and installation help in the repository README.
 
@@ -43,7 +43,7 @@ kartą per septynias dienas. Jį galima užverti arba pasirinkti Gal vėliau. Vi
 https://buy.stripe.com/9B65kE4VZaDL5uI33F6Zy00
 
 Jei macOS blokuoja programą, patikrink, ar ji gauta iš oficialaus GitHub leidimo.
-Šis 2.4.1 leidimas ir ankstesni leidimai Apple nenotarizuoti. Neišjunk Gatekeeper apsaugos.
+Šis 2.4.2 leidimas ir ankstesni leidimai Apple nenotarizuoti. Neišjunk Gatekeeper apsaugos.
 POM praneša apie naują versiją ir ją įdiegia paspaudus Install Update.
 Pasirašymo būsena ir diegimo pagalba pateikta projekto README.
 

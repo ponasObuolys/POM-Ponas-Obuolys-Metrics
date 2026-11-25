@@ -4,6 +4,11 @@ import POMCore
 @MainActor
 final class HistoryService: ObservableObject {
     @Published private(set) var claude: TokenUsageSnapshot?
+    /// The part of `claude` used by Fable and Mythos models.
+    @Published private(set) var claudeFable: TokenUsageSnapshot?
+    @Published private(set) var grokBot: GrokBotDailyUsage?
+    @Published private(set) var fetchingGrokBot = false
+    @Published private(set) var grokBotUnavailable = false
     @Published private(set) var codex: TokenUsageSnapshot?
     @Published private(set) var importing = false
     @Published private(set) var fetchingCodex = false
@@ -14,6 +19,8 @@ final class HistoryService: ObservableObject {
     private var timer: Timer?
     private var claudeTask: Task<Void, Never>?
     private var codexTask: Task<Void, Never>?
+    private var grokBotTask: Task<Void, Never>?
+    private let fetchGrokBot: @Sendable () async throws -> (identity: String, period: GrokBotDailyUsage.Period)
     private var lastAttempt: Date?
     @Published private(set) var saveFailed = false
     private var recovery: RecoveryTracker
@@ -26,10 +33,20 @@ final class HistoryService: ObservableObject {
     init(settings: Settings, notifications: NotificationService,
          directory: URL = POMPaths.supportDirectory,
          home: URL = FileManager.default.homeDirectoryForCurrentUser,
-         previewClaude: TokenUsageSnapshot? = nil, previewCodex: TokenUsageSnapshot? = nil) {
+         previewClaude: TokenUsageSnapshot? = nil, previewClaudeFable: TokenUsageSnapshot? = nil,
+         previewCodex: TokenUsageSnapshot? = nil, previewGrokBot: GrokBotDailyUsage? = nil,
+         fetchGrokBot: (@Sendable () async throws -> (identity: String, period: GrokBotDailyUsage.Period))? = nil) {
         self.settings = settings; self.notifications = notifications
         worker = TokenHistoryWorker(directory: directory, root: home.appendingPathComponent(".claude/projects"))
-        claude = previewClaude; codex = previewCodex
+        claude = previewClaude; claudeFable = previewClaudeFable; codex = previewCodex; grokBot = previewGrokBot
+        self.fetchGrokBot = fetchGrokBot ?? {
+            // Keychain and file reads stay off the main thread; the sign-in is never renewed or saved.
+            let session = try await Task.detached(priority: .utility) {
+                try GrokBotSession.resolve(grokBot: { try GrokBotSession.read(file: GrokBotSession.secretsURL(home: home)) },
+                                           cursor: { try CursorClient.readSession(database: CursorClient.databaseURL(home: home)) })
+            }.value
+            return (session.fingerprint, try await CursorClient().fetchGrokBotDailyUsage(session: session))
+        }
         recoveryURL = directory.appendingPathComponent("recovery-state.json")
         recovery = (try? Data(contentsOf: recoveryURL)).flatMap {
             try? JSONDecoder().decode(RecoveryTracker.self, from: $0)
@@ -90,7 +107,7 @@ final class HistoryService: ObservableObject {
 
     func stop() {
         timer?.invalidate(); timer = nil
-        claudeTask?.cancel(); codexTask?.cancel()
+        claudeTask?.cancel(); codexTask?.cancel(); grokBotTask?.cancel()
     }
 
     /// Uses summaries already in memory; no transcript scans or CLI/network calls.
@@ -141,11 +158,15 @@ final class HistoryService: ObservableObject {
             claudeTask = Task(priority: .background) {
                 defer { importing = false; claudeTask = nil }
                 do {
-                    if claude == nil { claude = await worker.cached(provider: "claude") }
+                    if claude == nil {
+                        claude = await worker.cached(provider: "claude")
+                        claudeFable = await worker.cached(provider: "claude-fable")
+                    }
                     try await worker.begin()
                     while !Task.isCancelled {
                         let batch = try await worker.batch()
                         claude = batch.available || !batch.snapshot.days.isEmpty ? batch.snapshot : nil
+                        claudeFable = claude == nil ? nil : batch.fable
                         claudeUnavailable = !batch.available
                         skippedLines = batch.skippedLines
                         if batch.complete { break }
@@ -165,6 +186,22 @@ final class HistoryService: ObservableObject {
                     codex = try await worker.fetchCodex()
                     codexUnavailable = false
                 } catch { codexUnavailable = true }
+            }
+        }
+        if grokBotTask == nil {
+            fetchingGrokBot = true
+            grokBotTask = Task(priority: .background) {
+                defer { fetchingGrokBot = false; grokBotTask = nil }
+                if grokBot == nil { grokBot = await worker.cachedGrokBot() }
+                // Asked only while the user keeps Grok Bot's server readings enabled.
+                guard settings.grokBotServerEnabled else { grokBotUnavailable = false; return }
+                do {
+                    let reading = try await fetchGrokBot()
+                    guard settings.grokBotServerEnabled, !Task.isCancelled else { return }
+                    grokBot = try await worker.mergeGrokBot(identity: reading.identity, period: reading.period)
+                    grokBotUnavailable = false
+                } catch is CancellationError { }
+                catch { grokBotUnavailable = true }
             }
         }
     }
@@ -208,7 +245,10 @@ private actor TokenHistoryWorker {
     func batch() throws -> ClaudeTokenIndexer.Batch {
         let batch = try indexer!.scanBatch(maxSeconds: 0.05)
         // Save only a completed import; a crash must not turn partial totals into a complete history.
-        if batch.complete, batch.available { try save(batch.snapshot, provider: "claude") }
+        if batch.complete, batch.available {
+            try save(batch.snapshot, provider: "claude")
+            try save(batch.fable, provider: "claude-fable")
+        }
         return batch
     }
     func fetchCodex() throws -> TokenUsageSnapshot {
@@ -216,6 +256,17 @@ private actor TokenHistoryWorker {
         let snapshot = try CodexClient().fetchUsage(executable: executable)
         try save(snapshot, provider: "codex")
         return snapshot
+    }
+    private var grokBotURL: URL { directory.appendingPathComponent("grok-bot-days.json") }
+    func cachedGrokBot() -> GrokBotDailyUsage? { GrokBotDailyUsage.load(from: grokBotURL) }
+    /// A different account starts its own history instead of continuing another's.
+    func mergeGrokBot(identity: String, period: GrokBotDailyUsage.Period, now: Date = Date()) throws -> GrokBotDailyUsage {
+        var usage = cachedGrokBot().flatMap { $0.identity == identity ? $0 : nil }
+            ?? GrokBotDailyUsage(identity: identity, updatedAt: now)
+        usage.merge(period, now: now)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try JSONEncoder().encode(usage).write(to: grokBotURL, options: .atomic)
+        return usage
     }
     private func save(_ snapshot: TokenUsageSnapshot, provider: String) throws {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

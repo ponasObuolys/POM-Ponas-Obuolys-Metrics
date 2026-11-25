@@ -165,7 +165,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let controller = NSHostingController(rootView: HistoryView(service: history, settings: settings))
             let window = NSWindow(contentViewController: controller)
             window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
-            window.setContentSize(NSSize(width: 840, height: 700))
+            window.setContentSize(NSSize(width: 840, height: 780))
             window.contentMinSize = NSSize(width: 780, height: 700)
             window.isReleasedWhenClosed = false
             window.center()

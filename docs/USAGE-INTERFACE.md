@@ -20,9 +20,15 @@ Synthetic data from the SwiftUI checks:
 
 7/30-day totals and charts still include today. Daily averages exclude today (6 completed days in the 7-day view, 29 in the 30-day view). The 7-day view additionally compares yesterday and the preceding six days with the seven days before that; the intervals are printed explicitly. No monthly comparison or longer retention is added.
 
-Comparisons and averages require a collection refreshed today with no unfinished import, skipped Claude records or refresh failure. Missing buckets in completed desktop summaries retain the existing zero interpretation. Comparisons are labelled as based on available records, not a guarantee of account-wide coverage. A zero baseline produces an absolute token change instead of a percentage.
+Comparisons and averages require a collection refreshed today with no unfinished import, skipped Claude records or refresh failure. Since 2.4.2 skipped records are counted per session file, so the warning ends when that file is rewritten or leaves the 30-day window; earlier versions kept the count forever. Missing buckets in completed desktop summaries retain the existing zero interpretation. Comparisons are labelled as based on available records, not a guarantee of account-wide coverage. A zero baseline produces an absolute token change instead of a percentage.
 
 Chart checkboxes filter the graph and selected-day values only; at least one remains enabled. Totals and exports continue to include both available providers. Codex uses a dashed line, Claude a solid line.
+
+Since 2.4.2 a dotted **Fable / Mythos** line and a line in the Claude card show the part of the Claude total used by models whose name contains `fable` or `mythos` (they share one weekly limit). It is a part of the Claude total, never an addition to it. The index is rebuilt once after the update, so totals stay partial until the import finishes.
+
+With **Grok Bot from server** enabled, a third card and a bar chart show the share of Grok Bot's weekly limit used on each UTC day. Grok Bot reports no tokens, so this is never drawn on the token axis; over several weeks the sum can exceed 100%. The server reports the running week only; POM keeps earlier weeks for 30 days in `grok-bot-days.json`, per account. A reset day adds the parts of both weeks. Days before collection began stay empty rather than zero. Exports still contain Claude and Codex tokens only. Details: [Cursor/Grok integration](CURSOR-GROK-METRICS.md).
+
+Date labels sit centred under their points, including the last day (before 2.4.2 they were shifted right and today's label was missing). Cards in the row share one height.
 
 ## Export
 

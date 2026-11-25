@@ -131,6 +131,22 @@ public struct CursorClient: Sendable {
         catch { throw ClientError.unavailable }
     }
 
+    /// Read-only daily breakdown that Grok Bot's own usage page requests.
+    public func fetchGrokBotDailyUsage(session: Session, now: Date = Date()) async throws -> GrokBotDailyUsage.Period {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.httpCookieStorage = nil
+        configuration.httpShouldSetCookies = false
+        configuration.urlCache = nil
+        let transport = URLSession(configuration: configuration, delegate: CursorRedirectBlocker(), delegateQueue: nil)
+        defer { transport.invalidateAndCancel() }
+        do {
+            let data = try await read(method: "GetGrokBotUsageBreakdown", session: session, transport: transport)
+            return try GrokBotDailyUsage.parse(data, now: now)
+        } catch let error as ClientError { throw error }
+        catch is CancellationError { throw CancellationError() }
+        catch { throw ClientError.unavailable }
+    }
+
     private func read(method: String, session: Session, transport: URLSession) async throws -> Data {
         let (bytes, response) = try await transport.bytes(for: session.request(method: method))
         guard let response = response as? HTTPURLResponse else { throw ClientError.invalidResponse }

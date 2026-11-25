@@ -214,3 +214,12 @@ ir pridėtas pačios Grok Bot prisijungimo naudojimas su Cursor kaip atsarginiu.
 Detalės: [[wiki/synthesis/cursor-grok-metrics]]. Šaltiniai: `CursorClient.swift`,
 `GrokBotSession.swift`, `CursorSessionStorage.swift`, `AdditionalUsageViewModel.swift`,
 `docs/releases/2.4.1.md`.
+
+## 2026-11-25 · POM 2.4.2: Fable/Mythos ir Grok Bot istorijoje
+
+Istorijos lange atskirta Fable/Mythos tokenų dalis, pridėta Grok Bot dienos limito
+dalių istorija (procentais), sutvarkyti grafiko datų užrašai ir amžinas neperskaitytų
+įrašų įspėjimas. Detalės: [[wiki/synthesis/usage-interface]],
+[[wiki/synthesis/cursor-grok-metrics]]. Šaltiniai: `ClaudeTokenIndexer.swift`,
+`GrokBotDailyUsage.swift`, `HistoryService.swift`, `HistoryView.swift`,
+`docs/releases/2.4.2.md`.

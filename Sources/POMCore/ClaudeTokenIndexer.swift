@@ -7,6 +7,8 @@ import SQLite3
 public final class ClaudeTokenIndexer {
     public struct Batch: Sendable {
         public let snapshot: TokenUsageSnapshot
+        /// The part of `snapshot` used by Fable and Mythos models.
+        public let fable: TokenUsageSnapshot
         public let complete: Bool
         public let available: Bool
         public let bytesRead: Int
@@ -22,6 +24,7 @@ public final class ClaudeTokenIndexer {
     private var position: Int64 = 0
     private var line = Data()
     private var discarding = false
+    /// Unreadable records of the file being read; saved per file so a warning ends with its file.
     private var skipped = 0
     private var available = false
     private var cutoff = ""
@@ -29,6 +32,7 @@ public final class ClaudeTokenIndexer {
     private let timestamp = ISO8601DateFormatter()
     private let plainTimestamp = ISO8601DateFormatter()
     public static let maximumLineBytes = 4 * 1024 * 1024
+    private static let schema = 2
     private let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
 
     public init(root: URL, database: URL) throws {
@@ -37,15 +41,25 @@ public final class ClaudeTokenIndexer {
         try FileManager.default.createDirectory(at: database.deletingLastPathComponent(), withIntermediateDirectories: true)
         guard sqlite3_open(database.path, &db) == SQLITE_OK else { throw IndexError.database }
         try execute("PRAGMA cache_size=-1024; PRAGMA journal_mode=DELETE; PRAGMA secure_delete=ON;")
+        try execute("CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value INTEGER);")
+        if try count("SELECT value FROM metadata WHERE key='schema'") != Self.schema {
+            // Earlier indexes hold neither the model nor which file warned; sessions are read again.
+            try execute("""
+                DROP TABLE IF EXISTS files; DROP TABLE IF EXISTS messages; DELETE FROM metadata;
+                INSERT INTO metadata(key,value) VALUES('schema',\(Self.schema));
+                """)
+        }
         try execute("""
-            CREATE TABLE IF NOT EXISTS files (key TEXT PRIMARY KEY, inode INTEGER, offset INTEGER, size INTEGER, modified REAL, discarding INTEGER);
-            CREATE TABLE IF NOT EXISTS messages (key TEXT PRIMARY KEY, day TEXT NOT NULL, tokens INTEGER NOT NULL);
+            CREATE TABLE IF NOT EXISTS files (key TEXT PRIMARY KEY, inode INTEGER, offset INTEGER, size INTEGER, modified REAL, discarding INTEGER, skipped INTEGER NOT NULL DEFAULT 0);
+            CREATE TABLE IF NOT EXISTS messages (key TEXT PRIMARY KEY, day TEXT NOT NULL, tokens INTEGER NOT NULL, fable INTEGER NOT NULL DEFAULT 0);
             CREATE INDEX IF NOT EXISTS message_day ON messages(day);
-            CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value INTEGER);
             """)
-        let statement = try prepare("SELECT value FROM metadata WHERE key='skipped'")
-        defer { sqlite3_finalize(statement) }
-        if sqlite3_step(statement) == SQLITE_ROW { skipped = Int(sqlite3_column_int64(statement, 0)) }
+    }
+
+    /// Fable and Mythos draw on the same separate weekly limit.
+    public static func isFableFamily(_ model: String?) -> Bool {
+        guard let model = model?.lowercased() else { return false }
+        return model.contains("fable") || model.contains("mythos")
     }
     deinit { try? handle?.close(); sqlite3_close(db) }
 
@@ -92,15 +106,12 @@ public final class ClaudeTokenIndexer {
     }
 
     private func scan(now: Date, maxBytes: Int, maxSeconds: Double) throws -> Batch {
-        guard nextFile < files.count else {
-            return Batch(snapshot: TokenUsageSnapshot(days: try totals(), updatedAt: now), complete: true,
-                         available: available, bytesRead: 0, skippedLines: skipped)
-        }
+        guard nextFile < files.count else { return try batch(now: now, bytes: 0) }
         let started = ProcessInfo.processInfo.systemUptime
         var bytes = 0
         try execute("BEGIN IMMEDIATE")
         do {
-            let insert = try prepare("INSERT INTO messages(key,day,tokens) VALUES(?,?,?) ON CONFLICT(key) DO UPDATE SET day=min(day,excluded.day),tokens=max(tokens,excluded.tokens)")
+            let insert = try prepare("INSERT INTO messages(key,day,tokens,fable) VALUES(?,?,?,?) ON CONFLICT(key) DO UPDATE SET day=min(day,excluded.day),tokens=max(tokens,excluded.tokens),fable=max(fable,excluded.fable)")
             defer { sqlite3_finalize(insert) }
             while nextFile < files.count, bytes < maxBytes,
                   ProcessInfo.processInfo.systemUptime - started < maxSeconds {
@@ -112,6 +123,7 @@ public final class ClaudeTokenIndexer {
                         (old?.size != file.size || old?.modified == file.modified)
                     position = append ? old!.offset : 0
                     discarding = append ? old!.discarding : false
+                    skipped = append ? old!.skipped : 0
                     line.removeAll(keepingCapacity: true)
                     handle = try FileHandle(forReadingFrom: file.url)
                     try handle!.seek(toOffset: UInt64(position))
@@ -139,12 +151,18 @@ public final class ClaudeTokenIndexer {
                 }
                 try saveCursor(file, offset: position - Int64(line.count), finished: false)
             }
-            try execute("INSERT OR REPLACE INTO metadata(key,value) VALUES('skipped',\(skipped)); COMMIT")
+            try execute("COMMIT")
         } catch {
             try? execute("ROLLBACK"); try? handle?.close(); handle = nil; line.removeAll(); throw error
         }
-        return Batch(snapshot: TokenUsageSnapshot(days: try totals(), updatedAt: now), complete: nextFile == files.count,
-                     available: available, bytesRead: bytes, skippedLines: skipped)
+        return try batch(now: now, bytes: bytes)
+    }
+
+    private func batch(now: Date, bytes: Int) throws -> Batch {
+        Batch(snapshot: TokenUsageSnapshot(days: try totals(), updatedAt: now),
+              fable: TokenUsageSnapshot(days: try totals(fableOnly: true), updatedAt: now),
+              complete: nextFile == files.count, available: available, bytesRead: bytes,
+              skippedLines: try count("SELECT COALESCE(SUM(skipped),0) FROM files") ?? 0)
     }
 
     private func consume(_ data: Data, statement: OpaquePointer) throws {
@@ -171,28 +189,31 @@ public final class ClaudeTokenIndexer {
         sqlite3_reset(statement); sqlite3_clear_bindings(statement)
         bind(Self.hash(id), to: statement, at: 1); bind(day, to: statement, at: 2)
         sqlite3_bind_int64(statement, 3, total)
+        sqlite3_bind_int(statement, 4, Self.isFableFamily(message["model"] as? String) ? 1 : 0)
         guard sqlite3_step(statement) == SQLITE_DONE else { throw IndexError.database }
     }
 
-    private struct Cursor { let inode: Int64; let offset: Int64; let size: Int64; let modified: Double; let discarding: Bool }
+    private struct Cursor { let inode: Int64; let offset: Int64; let size: Int64; let modified: Double; let discarding: Bool; let skipped: Int }
     private func cursor(_ key: String) throws -> Cursor? {
-        let query = try prepare("SELECT inode,offset,size,modified,discarding FROM files WHERE key=?")
+        let query = try prepare("SELECT inode,offset,size,modified,discarding,skipped FROM files WHERE key=?")
         defer { sqlite3_finalize(query) }; bind(key, to: query, at: 1)
         guard sqlite3_step(query) == SQLITE_ROW else { return nil }
         return Cursor(inode: sqlite3_column_int64(query, 0), offset: sqlite3_column_int64(query, 1), size: sqlite3_column_int64(query, 2),
-                      modified: sqlite3_column_double(query, 3), discarding: sqlite3_column_int(query, 4) != 0)
+                      modified: sqlite3_column_double(query, 3), discarding: sqlite3_column_int(query, 4) != 0,
+                      skipped: Int(sqlite3_column_int64(query, 5)))
     }
     private func saveCursor(_ file: FileEntry, offset: Int64, finished: Bool) throws {
-        let query = try prepare("INSERT OR REPLACE INTO files VALUES(?,?,?,?,?,?)")
+        let query = try prepare("INSERT OR REPLACE INTO files VALUES(?,?,?,?,?,?,?)")
         defer { sqlite3_finalize(query) }; bind(file.key, to: query, at: 1)
         sqlite3_bind_int64(query, 2, file.inode); sqlite3_bind_int64(query, 3, offset)
         // -1 ensures an interrupted batch is rediscovered on restart.
         sqlite3_bind_int64(query, 4, finished ? file.size : -1)
         sqlite3_bind_double(query, 5, file.modified); sqlite3_bind_int(query, 6, discarding ? 1 : 0)
+        sqlite3_bind_int64(query, 7, Int64(skipped))
         guard sqlite3_step(query) == SQLITE_DONE else { throw IndexError.database }
     }
-    private func totals() throws -> [TokenDay] {
-        let query = try prepare("SELECT day,SUM(tokens) FROM messages WHERE day >= '\(cutoff)' AND day <= '\(today)' GROUP BY day ORDER BY day")
+    private func totals(fableOnly: Bool = false) throws -> [TokenDay] {
+        let query = try prepare("SELECT day,SUM(tokens) FROM messages WHERE day >= '\(cutoff)' AND day <= '\(today)'\(fableOnly ? " AND fable=1" : "") GROUP BY day ORDER BY day")
         defer { sqlite3_finalize(query) }
         var days: [TokenDay] = []
         var status = sqlite3_step(query)
@@ -202,6 +223,13 @@ public final class ClaudeTokenIndexer {
         }
         guard status == SQLITE_DONE else { throw IndexError.database }
         return days
+    }
+    private func count(_ sql: String) throws -> Int? {
+        let query = try prepare(sql)
+        defer { sqlite3_finalize(query) }
+        let status = sqlite3_step(query)
+        guard status == SQLITE_ROW || status == SQLITE_DONE else { throw IndexError.database }
+        return status == SQLITE_ROW ? Int(sqlite3_column_int64(query, 0)) : nil
     }
     private func prepare(_ sql: String) throws -> OpaquePointer {
         var statement: OpaquePointer?

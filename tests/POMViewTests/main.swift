@@ -105,7 +105,9 @@ import POMCore
         let claudeDays = keys.enumerated().map { TokenDay(day: $0.element, tokens: Int64([320000, 1450000, 820000, 2600000, 1800000, 960000, 2100000][$0.offset % 7])) }
         let codexDays = keys.enumerated().map { TokenDay(day: $0.element, tokens: Int64([780000, 920000, 1700000, 1200000, 2900000, 2300000, 3600000][$0.offset % 7])) }
         let populated = HistoryService(settings: settings, notifications: notifications, directory: historyDirectory,
-            previewClaude: TokenUsageSnapshot(days: claudeDays, updatedAt: now), previewCodex: TokenUsageSnapshot(days: codexDays, updatedAt: now))
+            previewClaude: TokenUsageSnapshot(days: claudeDays, updatedAt: now),
+            previewClaudeFable: TokenUsageSnapshot(days: claudeDays.map { TokenDay(day: $0.day, tokens: $0.tokens * 3 / 5) }, updatedAt: now),
+            previewCodex: TokenUsageSnapshot(days: codexDays, updatedAt: now))
         let reportData = try populated.exportReportData(now: now)
         let report = try UsageHistoryReport.decode(reportData)
         precondition(report.entries.map(\.source) == [.claudeCodeLocal, .codexAccount])
@@ -142,6 +144,23 @@ import POMCore
         settings.language = .lt
         try await render(HistoryView(service: populated, settings: settings), name: "history-lithuanian", directory: output, scheme: .dark)
         try await render(HistoryView(service: populated, settings: settings, days: 30), name: "history-thirty-days", directory: output, scheme: .light)
+        // Grok Bot history: two weekly periods, a reset day in both, and days before collection began.
+        var grokDays = GrokBotDailyUsage(identity: "fixture", updatedAt: now)
+        let grokKeys = UsageDay.keys(days: 10, now: now)
+        let resetMs = Int64(UsageDay.date(grokKeys[4])!.timeIntervalSince1970 * 1000) + 57_600_000
+        grokDays.merge(.init(startMs: resetMs - 7 * 86_400_000, days: Dictionary(uniqueKeysWithValues: zip(grokKeys[0...4], [91_000, 204_000, 38_000, 162_000, 55_000] as [Int64]))), now: now)
+        grokDays.merge(.init(startMs: resetMs, days: Dictionary(uniqueKeysWithValues: zip(grokKeys[4...9], [97_000, 125_000, 113_000, 191_000, 181_000, 82_000] as [Int64]))), now: now)
+        precondition(abs(grokDays.percentages(days: 7, now: now)[grokKeys[4]]! - 15.2) < 0.0001, "Reset day must add both periods")
+        let grokHistory = HistoryService(settings: settings, notifications: notifications, directory: historyDirectory,
+            previewClaude: populated.claude, previewClaudeFable: populated.claudeFable, previewCodex: populated.codex, previewGrokBot: grokDays)
+        try await render(HistoryView(service: grokHistory, settings: settings), name: "history-grok-lithuanian", directory: output, scheme: .dark)
+        settings.grokBotServerEnabled = true
+        try await render(HistoryView(service: grokHistory, settings: settings, days: 30), name: "history-grok-thirty-days", directory: output, scheme: .light)
+        settings.grokBotServerEnabled = false
+        settings.language = .en
+        try await render(HistoryView(service: grokHistory, settings: settings), name: "history-grok-english", directory: output, scheme: .light)
+        settings.language = .lt
+        try await checkGrokHistory(root: root, notifications: notifications)
         let group = MenuBarGroupView(entries: [MenuBarEntry(source: .claude, windows: [connected.fiveHour, connected.sevenDay], hasData: true), MenuBarEntry(source: .codex, windows: [codex.window], hasData: true)], showRemaining: false)
         try await render(group, name: "menubar-together", directory: output, scheme: .light)
         let newer = UsageSnapshot(fiveHour: UsageWindow(usedPercentage: 9, resetsAt: nil), sevenDay: UsageWindow(usedPercentage: 5, resetsAt: nil), capturedAt: Date(), source: .statusline)
@@ -307,6 +326,60 @@ import POMCore
         print("ChatGPT sign-in recovery: signed-out, expired credentials, success, failure, launch failure and timeout passed")
         try await checkGrokServer(root: root, output: output)
         try await checkAdditionalUsage(settings: settings, root: root, output: output, claude: disconnected, codex: codex)
+    }
+
+    /// Daily shares are requested only after opt-in, saved between launches and never mixed across accounts.
+    @MainActor static func checkGrokHistory(root: URL, notifications: NotificationService) async throws {
+        let suite = "pom-grok-history-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = Settings(defaults: defaults)
+        let directory = root.appendingPathComponent("grok-history")
+        let home = root.appendingPathComponent("grok-history-home")
+        let account = root.appendingPathComponent("grok-history-account")
+        let requests = root.appendingPathComponent("grok-history-requests")
+        let failure = root.appendingPathComponent("grok-history-failure")
+        try "A".write(to: account, atomically: true, encoding: .utf8)
+        let today = UsageDay.key(Date())
+        let start = Int64(Date().timeIntervalSince1970 * 1000) - 86_400_000
+        func service() -> HistoryService {
+            HistoryService(settings: settings, notifications: notifications, directory: directory, home: home, fetchGrokBot: {
+                let old = (try? String(contentsOf: requests, encoding: .utf8)) ?? ""
+                try (old + "x").write(to: requests, atomically: true, encoding: .utf8)
+                if FileManager.default.fileExists(atPath: failure.path) { throw CursorClient.ClientError.unavailable }
+                let identity = try String(contentsOf: account, encoding: .utf8)
+                return (identity, .init(startMs: start, days: [today: identity == "A" ? 120_000 : 30_000]))
+            })
+        }
+        func settle(_ history: HistoryService) async throws {
+            for _ in 0..<300 where history.fetchingGrokBot { try await Task.sleep(for: .milliseconds(10)) }
+            precondition(!history.fetchingGrokBot)
+        }
+        let disabled = service()
+        disabled.refresh(); try await settle(disabled); disabled.stop()
+        precondition(!FileManager.default.fileExists(atPath: requests.path) && disabled.grokBot == nil, "No Grok request without opt-in")
+        settings.grokBotServerEnabled = true
+        let first = service()
+        first.refresh(); try await settle(first); first.stop()
+        precondition(abs((first.grokBot?.total(days: 7) ?? 0) - 12) < 0.0001 && !first.grokBotUnavailable)
+        try Data().write(to: failure)
+        let failed = service()
+        failed.refresh(); try await settle(failed); failed.stop()
+        precondition(failed.grokBotUnavailable && abs((failed.grokBot?.total(days: 7) ?? 0) - 12) < 0.0001,
+                     "A failed refresh keeps the saved history")
+        try FileManager.default.removeItem(at: failure)
+        try "B".write(to: account, atomically: true, encoding: .utf8)
+        let switched = service()
+        switched.refresh(); try await settle(switched); switched.stop()
+        precondition(abs((switched.grokBot?.total(days: 7) ?? 0) - 3) < 0.0001 && switched.grokBot?.identity == "B",
+                     "Another account starts its own history")
+        settings.grokBotServerEnabled = false
+        let paused = service()
+        paused.refresh(); try await settle(paused); paused.stop()
+        let sent = try String(contentsOf: requests, encoding: .utf8)
+        precondition(sent == "xxx" && paused.grokBot?.identity == "B",
+                     "Turning the setting off stops requests and keeps what was collected")
+        print("Grok Bot history: opt-in, saved shares, failed refresh, account switch and pause passed")
     }
 
     @MainActor static func checkGrokServer(root: URL, output: URL) async throws {
