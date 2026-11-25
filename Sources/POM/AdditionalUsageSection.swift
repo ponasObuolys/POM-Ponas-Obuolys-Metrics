@@ -51,10 +51,11 @@ struct AdditionalUsageCard: View {
             if source == .cursor {
                 cursorStatus
             } else if settings.grokBotServerEnabled {
-                Label(settings.text("Cursor paskyros Grok Bot limitas", "Grok Bot quota on the Cursor account"), systemImage: "network")
+                Label(settings.text("Grok Bot limitas iš serverio", "Grok Bot quota from the server"), systemImage: "network")
                     .font(.system(size: 10)).foregroundStyle(.secondary)
                 if let error = model.grokBotServerError {
-                    Text(grokServerError(error)).font(.system(size: 11)).foregroundStyle(.orange)
+                    Text(grokServerError(error)).font(.system(size: 11))
+                        .foregroundStyle(error == .sessionExpired ? AnyShapeStyle(.secondary) : AnyShapeStyle(.orange))
                 } else if model.isFetchingGrokBot && model.grokBot == nil {
                     ProgressView(settings.text("Gaunamas Grok Bot limitas…", "Fetching Grok Bot quota…")).controlSize(.small)
                 }
@@ -69,12 +70,12 @@ struct AdditionalUsageCard: View {
                                         "Grok Bot refreshes these readings; POM does not query its server."))
             }
             if source == .grokBot && !settings.grokBotServerEnabled {
-                Button(settings.text("Atnaujinti iš serverio per Cursor paskyrą", "Refresh from server using Cursor account")) {
+                Button(settings.text("Atnaujinti iš serverio", "Refresh from server")) {
                     settings.grokBotServerEnabled = true
                     model.refresh(source: .grokBot)
                 }.controlSize(.small)
-                .help(settings.text("Naudoja šiame Mac esantį Cursor prisijungimą. Grok Bot gali likti uždaryta.",
-                                    "Uses this Mac's Cursor sign-in. Grok Bot can stay closed."))
+                .help(settings.text("Naudoja šiame Mac esantį Grok Bot arba Cursor prisijungimą.",
+                                    "Uses the Grok Bot or Cursor sign-in on this Mac."))
             }
         }.environment(\.providerStatus, model.status(for: source, language: settings.language))
     }
@@ -115,14 +116,15 @@ struct AdditionalUsageCard: View {
         case .signedOut: return settings.text("Prisijunk prie Cursor programos ir atnaujink POM.", "Sign in to the Cursor app, then refresh POM.")
         case .invalidResponse: return settings.text("Cursor nepateikė atpažįstamos naudojimo suvestinės. Paskyrų ir planų formatai gali skirtis.", "Cursor did not return a recognized usage summary. Account and plan formats may differ.")
         case .rateLimited: return settings.text("Cursor laikinai riboja užklausas. POM vėliau bandys dar kartą.", "Cursor is limiting requests. POM will try again later.")
-        case .unavailable: return settings.text("Nepavyko atnaujinti Cursor limitų. Jei yra ankstesnių duomenų, rodomas jų gavimo laikas.", "Could not refresh Cursor usage. Previous readings show their original update time.")
+        case .unavailable, .sessionExpired: return settings.text("Nepavyko atnaujinti Cursor limitų. Jei yra ankstesnių duomenų, rodomas jų gavimo laikas.", "Could not refresh Cursor usage. Previous readings show their original update time.")
         }
     }
 
     private func grokServerError(_ error: CursorClient.ClientError) -> String {
         switch error {
         case .credentialStorage: return settings.text("POM negali perskaityti užšifruotos Cursor sesijos. Paleisk POM iš naujo ir leisk pasiekti „Cursor Safe Storage“ macOS raktinėje.", "POM cannot read the encrypted Cursor session. Restart POM and allow access to Cursor Safe Storage in macOS Keychain.")
-        case .signedOut: return settings.text("Serveris atmetė Cursor sesiją. Prisijunk iš naujo Cursor programoje ir atnaujink POM.", "Cursor session was rejected. Sign in again in Cursor, then refresh POM.")
+        case .signedOut: return settings.text("Serveris atmetė prisijungimą. Prisijunk iš naujo Grok Bot arba Cursor programoje ir atnaujink POM.", "The server rejected the sign-in. Sign in again in Grok Bot or Cursor, then refresh POM.")
+        case .sessionExpired: return settings.text("Prisijungimas nebegalioja. Atidaryk Grok Bot arba Cursor, ir limitas atsinaujins.", "The sign-in has lapsed. Open Grok Bot or Cursor and the quota will refresh.")
         case .rateLimited: return settings.text("Serveris riboja užklausas. POM vėliau bandys dar kartą.", "The server is limiting requests. POM will retry later.")
         case .invalidResponse: return settings.text("Serveris nepateikė palaikomo individualaus Grok Bot limito.", "The server did not return a supported individual Grok Bot quota.")
         case .unavailable: return settings.text("Nepavyko atnaujinti iš serverio. Jei yra ankstesni rodmenys, rodomas jų tikras gavimo laikas.", "Server refresh failed. Any previous readings retain their original capture time.")

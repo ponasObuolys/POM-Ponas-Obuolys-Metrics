@@ -1458,7 +1458,109 @@ do {
     catch { checkEqual("Cursor wrong key is local error", error as? CursorClient.ClientError, .credentialStorage) }
     do { _ = try CursorSessionStorage.decode(fixture) { throw CursorClient.ClientError.credentialStorage }; check("Cursor denied Keychain rejected", false) }
     catch { checkEqual("Cursor denied Keychain is local error", error as? CursorClient.ClientError, .credentialStorage) }
+    // Cursor keeps this database in WAL mode; once Cursor quits, its -shm file is gone.
+    let walURL = FileManager.default.temporaryDirectory.appendingPathComponent("pom wal \(UUID().uuidString).sqlite")
+    defer { try? FileManager.default.removeItem(at: walURL) }
+    var walDB: OpaquePointer?
+    precondition(sqlite3_open(walURL.path, &walDB) == SQLITE_OK)
+    precondition(sqlite3_exec(walDB, "PRAGMA journal_mode=WAL; CREATE TABLE ItemTable (key TEXT, value TEXT); INSERT INTO ItemTable VALUES ('cursorAuth/accessToken', 'synthetic-session'); PRAGMA wal_checkpoint(TRUNCATE);", nil, nil, nil) == SQLITE_OK)
+    sqlite3_close(walDB)
+    for suffix in ["-shm", "-wal"] { try? FileManager.default.removeItem(atPath: walURL.path + suffix) }
+    check("Cursor WAL fixture has no shared-memory file", !FileManager.default.fileExists(atPath: walURL.path + "-shm"))
+    checkEqual("Cursor session readable while Cursor is closed", try CursorClient.readSession(database: walURL).fingerprint,
+               CursorClient.Session(accessToken: "synthetic-session").fingerprint)
+    check("Cursor closed-app read leaves no files behind", !FileManager.default.fileExists(atPath: walURL.path + "-shm") && !FileManager.default.fileExists(atPath: walURL.path + "-wal"))
 } catch { failures.append("Cursor encrypted storage: \(error)") }
+
+// MARK: - Grok Bot's own sign-in and session choice (synthetic data only)
+
+do {
+    let now = date(1_790_000_000)
+    func jwt(sub: String, exp: Date, salt: String = "a") -> String {
+        func part(_ json: String) -> String {
+            Data(json.utf8).base64EncodedString().replacingOccurrences(of: "+", with: "-")
+                .replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "")
+        }
+        return part(#"{"alg":"none"}"#) + "." + part(#"{"sub":"\#(sub)","exp":\#(Int(exp.timeIntervalSince1970))}"#) + "." + salt
+    }
+    let live = CursorClient.Session(accessToken: jwt(sub: "user-1", exp: now.addingTimeInterval(3600)))
+    let rotated = CursorClient.Session(accessToken: jwt(sub: "user-1", exp: now.addingTimeInterval(7200), salt: "b"))
+    let lapsed = CursorClient.Session(accessToken: jwt(sub: "user-1", exp: now.addingTimeInterval(-10)))
+    let closing = CursorClient.Session(accessToken: jwt(sub: "user-1", exp: now.addingTimeInterval(30)))
+    let stranger = CursorClient.Session(accessToken: jwt(sub: "user-2", exp: now.addingTimeInterval(3600)))
+    checkEqual("Session: expiry read from token", live.expiresAt, now.addingTimeInterval(3600))
+    check("Session: live token usable", live.isUsable(at: now))
+    check("Session: lapsed token unusable", !lapsed.isUsable(at: now))
+    check("Session: token about to lapse unusable", !closing.isUsable(at: now))
+    checkEqual("Session: renewed token keeps account identity", rotated.fingerprint, live.fingerprint)
+    check("Session: another account differs", stranger.fingerprint != live.fingerprint)
+    let opaque = CursorClient.Session(accessToken: "synthetic-session")
+    checkEqual("Session: opaque token has no expiry", opaque.expiresAt, nil)
+    check("Session: opaque token is tried", opaque.isUsable(at: now))
+    check("Session: description still redacted", !String(describing: live).contains("user-1"))
+
+    checkEqual("Choice: Grok Bot's own sign-in first", GrokBotSession.choose(grokBot: live, cursor: stranger, now: now)?.fingerprint, live.fingerprint)
+    checkEqual("Choice: same-account Cursor stands in", GrokBotSession.choose(grokBot: lapsed, cursor: rotated, now: now)?.expiresAt, rotated.expiresAt)
+    check("Choice: another account never stands in", GrokBotSession.choose(grokBot: lapsed, cursor: stranger, now: now) == nil)
+    check("Choice: nothing usable", GrokBotSession.choose(grokBot: lapsed, cursor: lapsed, now: now) == nil)
+    checkEqual("Choice: Cursor alone still works", GrokBotSession.choose(grokBot: nil, cursor: stranger, now: now)?.fingerprint, stranger.fingerprint)
+
+    var cursorReads = 0
+    let own = try GrokBotSession.resolve(grokBot: { live }, cursor: { cursorReads += 1; return stranger }, now: now)
+    checkEqual("Resolve: usable Grok Bot sign-in returned", own.fingerprint, live.fingerprint)
+    checkEqual("Resolve: Cursor untouched while Grok Bot is usable", cursorReads, 0)
+    checkEqual("Resolve: falls back to Cursor", try GrokBotSession.resolve(grokBot: { lapsed }, cursor: { rotated }, now: now).expiresAt, rotated.expiresAt)
+    checkEqual("Resolve: unreadable Grok Bot falls back to Cursor",
+               try GrokBotSession.resolve(grokBot: { throw CursorClient.ClientError.credentialStorage }, cursor: { stranger }, now: now).fingerprint, stranger.fingerprint)
+    for cursor in [lapsed, stranger] {
+        do { _ = try GrokBotSession.resolve(grokBot: { lapsed }, cursor: { cursor }, now: now); check("Resolve: lapsed reported", false) }
+        catch { checkEqual("Resolve: lapsed is not a sign-out", error as? CursorClient.ClientError, .sessionExpired) }
+    }
+    do { _ = try GrokBotSession.resolve(grokBot: { lapsed }, cursor: { throw CursorClient.ClientError.signedOut }, now: now); check("Resolve: lapsed without Cursor", false) }
+    catch { checkEqual("Resolve: lapsed Grok Bot without Cursor", error as? CursorClient.ClientError, .sessionExpired) }
+    do { _ = try GrokBotSession.resolve(grokBot: { throw CursorClient.ClientError.signedOut }, cursor: { throw CursorClient.ClientError.credentialStorage }, now: now)
+        check("Resolve: no sign-in anywhere", false)
+    } catch { checkEqual("Resolve: Cursor's own error kept", error as? CursorClient.ClientError, .credentialStorage) }
+
+    // Ciphertext of "synthetic-session" under "synthetic-password", as in the Cursor fixture above.
+    let cipher = "djEwRo2cjoWtj7lF8v8jKUMQ2QtIUL/ufJXBAk1YpWg/Oqc="
+    let expected = CursorClient.Session(accessToken: "synthetic-session").fingerprint
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("pom-grok-session-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let file = root.appendingPathComponent("sand-secrets.json")
+    func stored(_ object: [String: Any]) throws -> CursorClient.Session {
+        try JSONSerialization.data(withJSONObject: object).write(to: file)
+        return try GrokBotSession.read(file: file) { "synthetic-password" }
+    }
+    func accounts(_ token: String, active: String? = "scope") throws -> String {
+        let record: [String: Any] = ["active": active ?? NSNull(), "accounts": ["scope": ["cursor-access-token": token], "other": ["cursor-access-token": "AAAA"]]]
+        return String(decoding: try JSONSerialization.data(withJSONObject: record), as: UTF8.self)
+    }
+    checkEqual("Grok session: path", GrokBotSession.secretsURL(home: root).path, root.path + "/Library/Application Support/Grok Bot/sand-secrets.json")
+    do { _ = try GrokBotSession.read(file: file) { "synthetic-password" }; check("Grok session: missing file", false) }
+    catch { checkEqual("Grok session: missing file is signed out", error as? CursorClient.ClientError, .signedOut) }
+    check("Grok session: read never creates the file", !FileManager.default.fileExists(atPath: file.path))
+    checkEqual("Grok session: active account token", try stored(["version": 1, "cursor-accounts": try accounts(cipher), "cursor-access-token": "AAAA"]).fingerprint, expected)
+    checkEqual("Grok session: legacy top-level token", try stored(["cursor-access-token": cipher]).fingerprint, expected)
+    checkEqual("Grok session: no active account uses top-level token", try stored(["version": 1, "cursor-accounts": try accounts("AAAA", active: nil), "cursor-access-token": cipher]).fingerprint, expected)
+    checkEqual("Grok session: scoped token", try stored(["version": 1, "cursor-access-token": "scoped:v1:" + String(repeating: "a", count: 64) + ":" + cipher]).fingerprint, expected)
+    for absent in [["version": 1], ["version": 1, "cursor-access-token": "plaintext:v1:synthetic-session"]] as [[String: Any]] {
+        do { _ = try stored(absent); check("Grok session: absent token rejected", false) }
+        catch { checkEqual("Grok session: absent or plaintext token is signed out", error as? CursorClient.ClientError, .signedOut) }
+    }
+    for broken in [["version": 2, "cursor-access-token": cipher], ["version": 1, "cursor-access-token": "scoped:v1:short:" + cipher],
+                   ["version": 1, "cursor-access-token": "!!!!"]] as [[String: Any]] {
+        do { _ = try stored(broken); check("Grok session: unsupported storage rejected", false) }
+        catch { checkEqual("Grok session: unsupported storage is a local error", error as? CursorClient.ClientError, .credentialStorage) }
+    }
+    try Data("[]".utf8).write(to: file)
+    do { _ = try GrokBotSession.read(file: file) { "synthetic-password" }; check("Grok session: malformed file", false) }
+    catch { checkEqual("Grok session: malformed file is a local error", error as? CursorClient.ClientError, .credentialStorage) }
+    try JSONSerialization.data(withJSONObject: ["cursor-access-token": cipher]).write(to: file)
+    do { _ = try GrokBotSession.read(file: file) { throw CursorClient.ClientError.credentialStorage }; check("Grok session: denied Keychain", false) }
+    catch { checkEqual("Grok session: denied Keychain is a local error", error as? CursorClient.ClientError, .credentialStorage) }
+} catch { failures.append("Grok Bot session: \(error)") }
 
 // MARK: - Rezultatas
 

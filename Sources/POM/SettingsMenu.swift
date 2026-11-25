@@ -38,7 +38,7 @@ struct SettingsMenu: View {
             }
             Toggle(settings.text("Klausti serverio, kai duomenys pasenę", "Use server fallback for stale data"), isOn: $settings.serverFallbackEnabled)
             Toggle(settings.text("Cursor metrikos (esamu prisijungimu)", "Cursor metrics (existing sign-in)"), isOn: $settings.cursorMetricsEnabled)
-            Toggle(settings.text("Grok Bot iš serverio (Cursor paskyra)", "Grok Bot from server (Cursor account)"), isOn: $settings.grokBotServerEnabled)
+            Toggle(settings.text("Grok Bot iš serverio", "Grok Bot from server"), isOn: $settings.grokBotServerEnabled)
             Button(settings.text("Prisijungti prie Claude…", "Sign in to Claude…")) {
                 Task { await model.signInToClaude() }
             }

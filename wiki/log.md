@@ -206,3 +206,11 @@ su izoliuotomis kopijomis: vieša 2.2.3 vienu **Install Update** paspaudimu
 atsinaujino į 2.4.0 turinį ir pasileido iš naujo. Pakeistas v2.4.0 leidimo
 `appcast.xml` (DMG nekeistas) ir `scripts/publish-unnotarized.sh`.
 
+
+## 2026-11-25 · POM 2.4.1: limitai be atidarytos Cursor
+
+Ištaisytas Cursor bazės skaitymas uždarius Cursor (WAL be `-shm`, `immutable=1`)
+ir pridėtas pačios Grok Bot prisijungimo naudojimas su Cursor kaip atsarginiu.
+Detalės: [[wiki/synthesis/cursor-grok-metrics]]. Šaltiniai: `CursorClient.swift`,
+`GrokBotSession.swift`, `CursorSessionStorage.swift`, `AdditionalUsageViewModel.swift`,
+`docs/releases/2.4.1.md`.

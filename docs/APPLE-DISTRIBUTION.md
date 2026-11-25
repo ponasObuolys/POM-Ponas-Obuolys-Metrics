@@ -1,6 +1,6 @@
 # Apple enrollment and distribution
 
-Status checked on 2026-09-07. Published releases through 2.4.0 are still **not notarized**.
+Status checked on 2026-09-07. Published releases through 2.4.1 are still **not notarized**.
 Opening the enrollment website is not enrollment, and preparing code is not App Store approval.
 
 ## Enrollment

@@ -4,12 +4,20 @@ import Foundation
 /// Cursor's macOS Electron safeStorage envelope. Secrets remain in memory only.
 public enum CursorSessionStorage {
     private static let prefix = "cursor-safe-storage:v1:"
-    private static let keychain = KeychainReader()
+    private static let keychain = KeychainReader(service: "Cursor Safe Storage", account: "Cursor Key")
+    private static let grokBotKeychain = KeychainReader(service: "Grok Bot Safe Storage", account: "Grok Bot Key")
 
     public static func decode(_ stored: String, password: () throws -> String = readPassword) throws -> String {
         guard !stored.isEmpty, stored.utf8.count <= 32768 else { throw CursorClient.ClientError.credentialStorage }
         if !stored.hasPrefix("cursor-safe-storage:") { return try validate(stored) }
-        guard stored.hasPrefix(prefix), let envelope = Data(base64Encoded: String(stored.dropFirst(prefix.count))),
+        guard stored.hasPrefix(prefix) else { throw CursorClient.ClientError.credentialStorage }
+        return try decrypt(base64: String(stored.dropFirst(prefix.count)), password: password)
+    }
+
+    /// Electron safeStorage on macOS: "v10" + AES-128-CBC with a Keychain-derived key.
+    /// Shared by Cursor and Grok Bot, which differ only in the Keychain item.
+    public static func decrypt(base64: String, password: () throws -> String) throws -> String {
+        guard base64.utf8.count <= 32768, let envelope = Data(base64Encoded: base64),
               envelope.starts(with: Data("v10".utf8)), envelope.count > 3,
               (envelope.count - 3) % 16 == 0 else { throw CursorClient.ClientError.credentialStorage }
         let secret = try password()
@@ -44,11 +52,18 @@ public enum CursorSessionStorage {
     }
 
     public static func readPassword() throws -> String { try keychain.read() }
+    public static func readGrokBotPassword() throws -> String { try grokBotKeychain.read() }
 
-    /// Serializes access for Cursor and Grok. A denial is remembered until restart,
+    /// Serializes access to one Keychain item. A denial is remembered until restart,
     /// so background timers cannot repeatedly present Keychain permission prompts.
     private final class KeychainReader: @unchecked Sendable {
+        private let service: String
+        private let account: String
         private let lock = NSLock()
+        init(service: String, account: String) {
+            self.service = service
+            self.account = account
+        }
         private var result: Result<String, CursorClient.ClientError>?
         func read() throws -> String {
             lock.lock()
@@ -56,7 +71,7 @@ public enum CursorSessionStorage {
             if let result { return try result.get() }
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/security")
-            process.arguments = ["find-generic-password", "-s", "Cursor Safe Storage", "-a", "Cursor Key", "-w"]
+            process.arguments = ["find-generic-password", "-s", service, "-a", account, "-w"]
             let output = Pipe()
             process.standardOutput = output
             process.standardError = FileHandle.nullDevice

@@ -61,13 +61,15 @@ struct ProviderStatusView: View {
 extension AdditionalUsageViewModel {
     func status(for source: MenuBarSource, language: AppLanguage = .system) -> ProviderStatus {
         ProviderStatus(language: language, capturedAt: snapshot(for: source)?.capturedAt,
-            source: source == .grokBot ? (grokBotUsesServer ? language.text("Grok Bot · Cursor paskyra · serveris", "Grok Bot · Cursor account · server") : language.text("Vietinė Grok Bot suvestinė", "Local Grok Bot summary"))
+            source: source == .grokBot ? (grokBotUsesServer ? language.text("Grok Bot · serveris", "Grok Bot · server") : language.text("Vietinė Grok Bot suvestinė", "Local Grok Bot summary"))
                 : language.text("Cursor paskyra", "Cursor account"),
             note: source == .grokBot
                 ? (grokBotUsesServer
                     ? (grokBotServerError == .signedOut
-                       ? language.text("Cursor sesija atmesta. Prisijunk iš naujo Cursor programoje ir atnaujink POM.", "Cursor session rejected. Sign in again in Cursor and refresh POM.")
-                       : language.text("Savaitės limitas gaunamas tiesiai iš serverio pagal Cursor paskyrą. Grok Bot paleisti nereikia.", "Weekly quota comes directly from the server for the Cursor account. Grok Bot need not be running."))
+                       ? language.text("Prisijungimas atmestas. Prisijunk iš naujo Grok Bot arba Cursor programoje ir atnaujink POM.", "Sign-in rejected. Sign in again in Grok Bot or Cursor and refresh POM.")
+                       : grokBotServerError == .sessionExpired
+                       ? language.text("Prisijungimas nebegalioja. Atidaryk Grok Bot arba Cursor, ir limitas atsinaujins.", "The sign-in has lapsed. Open Grok Bot or Cursor and the quota will refresh.")
+                       : language.text("Savaitės limitas gaunamas tiesiai iš serverio su Grok Bot prisijungimu, o jam pasibaigus – su Cursor. Prisijungimą atnaujina pačios programos, kai jos veikia.", "Weekly quota comes directly from the server using the Grok Bot sign-in, or Cursor's once that has lapsed. The apps renew their sign-in while they run."))
                     : language.text("POM perskaito vietinę suvestinę. Naujausius duomenis iš serverio gauna pati Grok Bot programa — atverk jos paskyros meniu arba Usage & Billing.", "POM reads a local summary. Grok Bot itself fetches new server readings — open its account menu or Usage & Billing."))
                 : cursorError.map { _ in language.text("Atnaujinti nepavyko. Patikrink prisijungimą Cursor programoje.", "Refresh failed. Check your sign-in in Cursor.") },
             busy: source == .grokBot ? isFetchingGrokBot : isFetchingCursor,

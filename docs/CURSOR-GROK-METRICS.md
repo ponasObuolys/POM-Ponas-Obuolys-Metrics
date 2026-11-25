@@ -10,7 +10,10 @@ meniu esantis jungiklis leidžia naudoti esamą Cursor prisijungimą.
 
 Įjungus skaitomas tik `cursorAuth/accessToken` iš
 `~/Library/Application Support/Cursor/User/globalStorage/state.vscdb`, naudojant
-SQLite tik skaitymo režimą. Raktas laikomas tik atmintyje ir siunčiamas tik į
+SQLite tik skaitymo režimą. Bazė veikia WAL režimu, todėl uždarius Cursor jos
+bendros atminties failo (`-shm`) nebelieka ir įprastas tik skaitymo prisijungimas
+nepavyksta. Tada POM tą patį failą atveria kaip nekintamą (`immutable=1`). Iki 2.4.1
+dėl to Cursor ir Grok Bot limitai atsinaujindavo tik veikiant Cursor. Raktas laikomas tik atmintyje ir siunčiamas tik į
 `https://api2.cursor.sh/aiserver.v1.DashboardService/` duomenų užklausoms
 `GetCurrentPeriodUsage` ir `GetPlanInfo`. HTTP peradresavimai neleidžiami.
 POM nekopijuoja rakto, neieško naršyklės slapukų, neatnaujina prisijungimo ir
@@ -39,13 +42,34 @@ datą ir papildomą naudojimą. Prisijungimo raktas nebuvo rodomas ar išsaugota
 Integracija skirta macOS **Grok Bot** programai. Ji neskaito grok.com pokalbių
 ir nėra atskira xAI API kreditų integracija.
 
-### Tiesioginis atnaujinimas (darbinis kodas, 2026-11-03)
+### Tiesioginis atnaujinimas
 
-**Grok Bot iš serverio (Cursor paskyra)** nustatymas arba kortelės mygtukas įjungia
-atskirą `GetSandUsageStatus` užklausą į tą patį Cursor DashboardService serverį.
-Naudojamas esamas Cursor prisijungimas, nepriklausomai nuo Cursor metrikų jungiklio.
-Grok Bot programa gali likti uždaryta. Tai **Cursor paskyros** Grok Bot limitas;
-jeigu Grok Bot prisijungta kita paskyra, jos vietinė suvestinė su juo nemaišoma.
+**Grok Bot iš serverio** nustatymas arba kortelės mygtukas įjungia atskirą
+`GetSandUsageStatus` užklausą į tą patį Cursor DashboardService serverį,
+nepriklausomai nuo Cursor metrikų jungiklio.
+
+Nuo 2.4.1 pirmiausia naudojamas **pačios Grok Bot prisijungimas**. Jis skaitomas iš
+`~/Library/Application Support/Grok Bot/sand-secrets.json`: aktyvios paskyros
+`cursor-access-token` įrašas (arba senesnis viršutinio lygio įrašas), užšifruotas
+tuo pačiu Electron safeStorage būdu kaip Cursor, tik su `Grok Bot Safe Storage` /
+`Grok Bot Key` raktinės įrašu. Formatas patikrintas įdiegtos Grok Bot 1.3.0 kode.
+macOS vieną kartą paprašo leidimo; atsisakius lieka tik Cursor prisijungimas.
+
+Cursor prisijungimas yra atsarginis ir naudojamas tik tada, kai Grok Bot
+prisijungimo nėra, jo nepavyko perskaityti arba jis nebegalioja ir abu raktai
+priklauso **tai pačiai paskyrai** (lyginamas rakto `sub` laukas). Kitos paskyros
+limitas kortelėje neatsiranda.
+
+Prieš siunčiant tikrinamas rakto galiojimas (`exp` laukas, minutės atsarga). Kai
+nebegalioja nė vienas, POM nieko nesiunčia, užklausų neretina ir kas 30 sek.
+tikrina iš naujo. Kortelėje lieka paskutinis rodmuo su tikru jo amžiumi, o jei
+Grok Bot vietinė suvestinė naujesnė, rodoma ji. POM **niekada neatnaujina
+prisijungimo pats**: atnaujinimo raktas vienkartinis ir susietas su jį gavusia
+programa (DPoP), todėl jį panaudojus ta programa būtų atjungta.
+
+2026-11-25 abu tikri raktai galiojo dar apie 47 ir 55 paras, tad galiojimo pabaiga
+nebuvo pasenusių rodmenų priežastis. Priežastis buvo aukščiau aprašytas Cursor
+bazės skaitymas.
 
 Užklausą naudoja pati įdiegta Grok Bot programa. Rodomas serverio `usagePercent`,
 ne Cursor Auto/API procento kopija. Nauji bendro plano ir senieji atskiri limitai

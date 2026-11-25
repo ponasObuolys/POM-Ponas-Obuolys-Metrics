@@ -6,10 +6,11 @@ bei papildomus kreditus.
 
 [English](README.md) · [Atsisiųsti](https://github.com/ponasObuolys/POM-Ponas-Obuolys-Metrics/releases) · [Diegimo pagalba](docs/INSTALL.txt)
 
-> **[POM 2.4.0 paskelbta](https://github.com/ponasObuolys/POM-Ponas-Obuolys-Metrics/releases/tag/v2.4.0)** Apple silicon ir Intel kompiuteriams.
+> **[POM 2.4.1 paskelbta](https://github.com/ponasObuolys/POM-Ponas-Obuolys-Metrics/releases/tag/v2.4.1)** Apple silicon ir Intel kompiuteriams.
+> Ištaisyta klaida, dėl kurios Grok Bot ir Cursor limitai atsinaujindavo tik atidarius Cursor programą.
 > Nauja po 2.2.3: Cursor ir Grok Bot limitai, persitvarkanti suvestinė su kompaktišku vaizdu,
-> savaičių palyginimas ir JSON/CSV eksportas istorijoje. Ištaisyta klaida, dėl kurios Claude
-> paskyrų be 5 valandų limito rodmenys nebeatsinaujindavo. Žr. [leidimo aprašymą](docs/releases/2.4.0.md).
+> savaičių palyginimas ir JSON/CSV eksportas istorijoje. Žr. [2.4.1](docs/releases/2.4.1.md)
+> ir [2.4.0](docs/releases/2.4.0.md) leidimų aprašymus.
 >
 > Šis leidimas **Apple nenotarizuotas**, programos parašas yra ad-hoc. macOS gali
 > blokuoti pirmą paleidimą. Developer ID pasirašymas ir notarizacija dar neatlikti.
@@ -48,7 +49,7 @@ Reikia macOS 14 ar naujesnės ir bent vienos įdiegtos bei prie paskyros prijung
 Pasirenkamam Claude būsenos juostos tiltui reikia `jq`. Claude sąsaja priklauso nuo
 CLI versijos; patikrinta su 2.1.263.
 
-**macOS perspėjimas:** leidimai iki 2.4.0 imtinai nenotarizuoti, todėl kitame
+**macOS perspėjimas:** leidimai iki 2.4.1 imtinai nenotarizuoti, todėl kitame
 kompiuteryje juos gali blokuoti Gatekeeper. Savadarbis sertifikatas to neišsprendžia.
 Neišjunk Gatekeeper apsaugos. Tikslų perspėjimą įvertink pagal
 [Apple paaiškinimą](https://support.apple.com/en-us/102445).
@@ -113,7 +114,7 @@ bash scripts/install.sh
 patikimas viešas diegimo paketas.
 
 Žr. [kūrėjo aprašymą](claudedocs/README.md), [pasirašymo ir skelbimo instrukciją](docs/RELEASING.md)
-bei [2.4.0 leidimo aprašymą](docs/releases/2.4.0.md). Pranešdamas apie klaidą nurodyk
+bei [2.4.1 leidimo aprašymą](docs/releases/2.4.1.md). Pranešdamas apie klaidą nurodyk
 macOS, POM ir CLI versijas bei tikslų klaidos tekstą. Prisijungimo duomenų ir
 privačių pokalbių nepridėk.
 

@@ -1,10 +1,11 @@
 ---
 type: synthesis
 created: 2026-10-16
-updated: 2026-10-18
+updated: 2026-11-25
 sources:
   - Sources/POMCore/CursorClient.swift
   - Sources/POMCore/GrokBotCache.swift
+  - Sources/POMCore/GrokBotSession.swift
   - Sources/POM/AdditionalUsageViewModel.swift
   - Sources/POM/AdditionalUsageSection.swift
   - Sources/POM/ProviderMarkView.swift
@@ -91,3 +92,22 @@ Cursor raktinės įrašą, atskira vietinės saugyklos klaida ir apsauga nuo kar
 leidimo dialogų po atsisakymo. Tikros serverio užklausos 00:34 Vilniaus laiku
 sėkmingai grąžino Grok Bot (1 limitas) ir Cursor (2 limitai). Sesijos neatnaujinome,
 prisijungimo duomenys nebuvo spausdinami. 411 branduolio patikrų praėjo.
+
+## 2026-11-25 · Limitai atsinaujina ir uždarius Cursor (2.4.1)
+
+Savininkas pranešė, kad Grok Bot limitas atsinaujina tik atidarius Cursor. Pirminė
+prielaida (pasenęs Cursor raktas) nepasitvirtino: abu tikri raktai galiojo dar
+apie 47 ir 55 paras. Tikroji priežastis: Cursor `state.vscdb` veikia WAL režimu,
+uždarius Cursor nebelieka `-shm` failo ir POM tik skaitymo prisijungimas nebeatveria
+bazės (`unavailable`). Dabar tokiu atveju bazė skaitoma su `immutable=1`.
+
+Kartu Grok Bot limitui pirmiausia naudojamas pačios Grok Bot prisijungimas iš
+`sand-secrets.json` (`Grok Bot Safe Storage` raktinės įrašas), o Cursor lieka
+atsarginis tik tai pačiai paskyrai. Raktų galiojimas tikrinamas prieš užklausą;
+visiems pasibaigus rodomas paskutinis arba naujesnis vietinis rodmuo. POM raktų
+neatnaujina, nes atnaujinimo raktas vienkartinis ir susietas su programa.
+Paskyros tapatybė nustatoma pagal rakto `sub`, ne pagal patį raktą.
+
+450 branduolio patikrų ir SwiftUI patikros praėjo. Tikra patikra uždarius abi
+programas: prieš pataisymą Cursor prisijungimas neperskaitomas, po jo perskaityti
+abu, paskyra ta pati, serveris grąžino savaitės limitą.

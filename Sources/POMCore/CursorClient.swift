@@ -7,6 +7,8 @@ import SQLite3
 public struct CursorClient: Sendable {
     public enum ClientError: Error, Equatable {
         case signedOut, unavailable, invalidResponse, rateLimited, credentialStorage
+        /// Every local sign-in has lapsed; the owning app renews it when it next runs.
+        case sessionExpired
     }
 
     public static func databaseURL(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL {
@@ -18,9 +20,34 @@ public struct CursorClient: Sendable {
         public let fingerprint: String
         public var description: String { "Cursor session (redacted)" }
 
+        /// From the token's own JWT claims; nil when the token carries none.
+        public let expiresAt: Date?
+
         public init(accessToken: String) {
             token = accessToken
-            fingerprint = SHA256.hash(data: Data(accessToken.utf8)).map { String(format: "%02x", $0) }.joined()
+            let claims = Self.claims(accessToken)
+            expiresAt = claims?.exp.flatMap { $0.isFinite && $0 > 0 ? Date(timeIntervalSince1970: $0) : nil }
+            // Apps rotate tokens often; the account, not the token, identifies whose quota this is.
+            let identity = claims?.sub.flatMap { $0.isEmpty ? nil : "sub:" + $0 } ?? accessToken
+            fingerprint = SHA256.hash(data: Data(identity.utf8)).map { String(format: "%02x", $0) }.joined()
+        }
+
+        /// A minute of margin, so a request is never sent with a token about to lapse.
+        public func isUsable(at now: Date) -> Bool {
+            expiresAt.map { $0.timeIntervalSince(now) > 60 } ?? true
+        }
+
+        private struct Claims: Decodable {
+            let exp: Double?
+            let sub: String?
+        }
+        private static func claims(_ token: String) -> Claims? {
+            let parts = token.split(separator: ".", omittingEmptySubsequences: false)
+            guard parts.count == 3 else { return nil }
+            var payload = parts[1].replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
+            payload += String(repeating: "=", count: (4 - payload.count % 4) % 4)
+            guard let data = Data(base64Encoded: payload) else { return nil }
+            return try? JSONDecoder().decode(Claims.self, from: data)
         }
 
         fileprivate func request(method: String) -> URLRequest {
@@ -38,8 +65,19 @@ public struct CursorClient: Sendable {
     public init() {}
 
     public static func readSession(database: URL, password: () throws -> String = CursorSessionStorage.readPassword) throws -> Session {
+        do { return try readSession(database: database, immutable: false, password: password) }
+        catch ClientError.unavailable where !FileManager.default.fileExists(atPath: database.path + "-shm") {
+            // The database is in WAL mode. Once Cursor quits, its shared-memory file is gone and a
+            // read-only connection cannot recreate it, so read the settled file as immutable instead.
+            return try readSession(database: database, immutable: true, password: password)
+        }
+    }
+
+    private static func readSession(database: URL, immutable: Bool, password: () throws -> String) throws -> Session {
         var db: OpaquePointer?
-        guard sqlite3_open_v2(database.path, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_NOMUTEX, nil) == SQLITE_OK else {
+        let name = immutable ? database.absoluteString + "?immutable=1" : database.path
+        let flags = SQLITE_OPEN_READONLY | SQLITE_OPEN_NOMUTEX | (immutable ? SQLITE_OPEN_URI : 0)
+        guard sqlite3_open_v2(name, &db, flags, nil) == SQLITE_OK else {
             sqlite3_close(db)
             throw ClientError.signedOut
         }

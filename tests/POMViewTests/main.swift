@@ -318,11 +318,18 @@ import POMCore
         let sessionFile = root.appendingPathComponent("grok-server-session")
         let requests = root.appendingPathComponent("grok-server-requests")
         let failure = root.appendingPathComponent("grok-server-failure")
+        let lapsed = root.appendingPathComponent("grok-server-lapsed")
+        let localFile = root.appendingPathComponent("grok-server-local")
         try "account-A".write(to: sessionFile, atomically: true, encoding: .utf8)
         let snapshot = ProviderUsageSnapshot(meters: [.init(kind: .weekly, usedPercentage: 37,
             resetsAt: Date().addingTimeInterval(86400))], capturedAt: Date(), planName: "Premium")
+        let local = ProviderUsageSnapshot(meters: [.init(kind: .weekly, usedPercentage: 52,
+            resetsAt: Date().addingTimeInterval(86400))], capturedAt: snapshot.capturedAt.addingTimeInterval(1), planName: "Premium")
         let model = AdditionalUsageViewModel(settings: settings, home: root,
-            readCursorSession: { CursorClient.Session(accessToken: try String(contentsOf: sessionFile, encoding: .utf8)) },
+            readCursorSession: {
+                if FileManager.default.fileExists(atPath: lapsed.path) { throw CursorClient.ClientError.sessionExpired }
+                return CursorClient.Session(accessToken: try String(contentsOf: sessionFile, encoding: .utf8))
+            },
             fetchCursor: { _ in preconditionFailure("Cursor metrics remain disabled") },
             fetchGrokBot: { _ in
                 let old = (try? String(contentsOf: requests, encoding: .utf8)) ?? ""
@@ -330,7 +337,10 @@ import POMCore
                 try? await Task.sleep(for: .milliseconds(60))
                 if FileManager.default.fileExists(atPath: failure.path) { throw CursorClient.ClientError.signedOut }
                 return snapshot
-            }, readGrokBot: { throw GrokBotCache.CacheError.unavailable })
+            }, readGrokBot: {
+                guard FileManager.default.fileExists(atPath: localFile.path) else { throw GrokBotCache.CacheError.unavailable }
+                return local
+            })
         model.refreshNow()
         for _ in 0..<100 where model.isFetchingGrokBot { try await Task.sleep(for: .milliseconds(10)) }
         precondition(!FileManager.default.fileExists(atPath: requests.path), "No server request without opt-in")
@@ -348,6 +358,24 @@ import POMCore
             try await render(AdditionalUsageCard(model: model, settings: settings, source: .grokBot).providerCard().frame(width: 350),
                 name: "grok-direct-\(language)", directory: output, scheme: .light)
         }
+        try Data().write(to: lapsed)
+        model.refresh(source: .grokBot)
+        for _ in 0..<100 where model.isFetchingGrokBot { try await Task.sleep(for: .milliseconds(10)) }
+        precondition(model.grokBot == snapshot && model.grokBotServerError == .sessionExpired, "A lapsed sign-in keeps the last reading")
+        try Data().write(to: localFile)
+        model.refresh(source: .grokBot)
+        for _ in 0..<100 where model.isFetchingGrokBot { try await Task.sleep(for: .milliseconds(10)) }
+        precondition(model.grokBot == local, "A newer local Grok Bot reading replaces the older server one")
+        let lapsedRequests = try String(contentsOf: requests, encoding: .utf8)
+        precondition(lapsedRequests == "x", "No request is sent with a lapsed sign-in")
+        settings.language = .lt
+        try await render(AdditionalUsageCard(model: model, settings: settings, source: .grokBot).providerCard().frame(width: 350),
+            name: "grok-direct-lapsed", directory: output, scheme: .light)
+        try FileManager.default.removeItem(at: lapsed)
+        try FileManager.default.removeItem(at: localFile)
+        model.refresh(source: .grokBot)
+        for _ in 0..<100 where model.isFetchingGrokBot { try await Task.sleep(for: .milliseconds(10)) }
+        precondition(model.grokBot == local && model.grokBotServerError == nil, "A renewed sign-in clears the notice without waiting for a request")
         try "account-B".write(to: sessionFile, atomically: true, encoding: .utf8)
         try Data().write(to: failure)
         model.refresh(source: .grokBot)
@@ -368,7 +396,7 @@ import POMCore
         try await Task.sleep(for: .milliseconds(120))
         precondition(!model.grokBotUsesServer && model.grokBot == nil && !model.isFetchingGrokBot,
                      "Late server completion cannot overwrite local mode")
-        print("Direct Grok: opt-in, independent server refresh, throttling, account switch, 401 and cancellation passed")
+        print("Direct Grok: opt-in, independent server refresh, throttling, lapsed sign-in, account switch, 401 and cancellation passed")
     }
 
     @MainActor static func checkAdditionalUsage(settings: Settings, root: URL, output: URL,

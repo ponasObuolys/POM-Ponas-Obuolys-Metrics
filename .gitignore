@@ -12,3 +12,4 @@ dist/
 *.keychain-db
 *.private-key
 __pycache__/
+.vscode/

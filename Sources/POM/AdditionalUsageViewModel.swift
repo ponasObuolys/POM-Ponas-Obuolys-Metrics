@@ -21,6 +21,7 @@ final class AdditionalUsageViewModel: ObservableObject {
     private let readCursorSession: @Sendable () throws -> CursorClient.Session
     private let fetchCursor: @Sendable (CursorClient.Session) async throws -> ProviderUsageSnapshot
     private let fetchGrokBot: @Sendable (CursorClient.Session) async throws -> ProviderUsageSnapshot
+    private let readGrokBotSession: @Sendable () throws -> CursorClient.Session
     private var grokIdentity: String?
     private var grokGeneration = 0
     private var grokGate = ServerFetchGate(enabled: true, staleThreshold: 5 * 60, manualFloor: 30,
@@ -38,10 +39,16 @@ final class AdditionalUsageViewModel: ObservableObject {
          readCursorSession: (@Sendable () throws -> CursorClient.Session)? = nil,
          fetchCursor: @escaping @Sendable (CursorClient.Session) async throws -> ProviderUsageSnapshot = { try await CursorClient().fetch(session: $0) },
          fetchGrokBot: @escaping @Sendable (CursorClient.Session) async throws -> ProviderUsageSnapshot = { try await CursorClient().fetchGrokBot(session: $0) },
-         readGrokBot: (@Sendable () throws -> ProviderUsageSnapshot)? = nil) {
+         readGrokBot: (@Sendable () throws -> ProviderUsageSnapshot)? = nil,
+         readGrokBotSession: (@Sendable () throws -> CursorClient.Session)? = nil) {
         self.settings = settings
         self.home = home
-        self.readCursorSession = readCursorSession ?? { try CursorClient.readSession(database: CursorClient.databaseURL(home: home)) }
+        let readCursor = readCursorSession ?? { try CursorClient.readSession(database: CursorClient.databaseURL(home: home)) }
+        self.readCursorSession = readCursor
+        self.readGrokBotSession = readGrokBotSession ?? {
+            try GrokBotSession.resolve(grokBot: { try GrokBotSession.read(file: GrokBotSession.secretsURL(home: home)) },
+                                       cursor: readCursor)
+        }
         self.fetchCursor = fetchCursor
         self.fetchGrokBot = fetchGrokBot
         self.readGrokBot = readGrokBot ?? { try GrokBotCache(home: home).read() }
@@ -112,7 +119,8 @@ final class AdditionalUsageViewModel: ObservableObject {
     private func refreshGrokBotServer(manual: Bool) {
         guard grokBotTask == nil else { return }
         let revision = grokGeneration
-        let read = readCursorSession
+        let read = readGrokBotSession
+        let readLocal = readGrokBot
         let fetch = fetchGrokBot
         isFetchingGrokBot = true
         grokBotTask = Task { [weak self] in
@@ -123,6 +131,7 @@ final class AdditionalUsageViewModel: ObservableObject {
             do {
                 let session = try await Task.detached(priority: .utility) { try read() }.value
                 guard self.grokGeneration == revision, self.settings.grokBotServerEnabled else { return }
+                if self.grokBotServerError == .sessionExpired { self.grokBotServerError = nil }
                 if self.grokIdentity != session.fingerprint {
                     self.grokBot = nil
                     self.grokIdentity = session.fingerprint
@@ -144,6 +153,14 @@ final class AdditionalUsageViewModel: ObservableObject {
                 guard self.grokGeneration == revision, self.settings.grokBotServerEnabled else { return }
                 let failure = error as? CursorClient.ClientError ?? .unavailable
                 self.grokBotServerError = failure
+                if failure == .sessionExpired {
+                    // No request was sent, so no backoff: the next tick retries as soon as
+                    // Grok Bot or Cursor renews its sign-in. Meanwhile keep the newest reading.
+                    let local = await Task.detached(priority: .utility) { try? readLocal() }.value
+                    guard self.grokGeneration == revision, self.settings.grokBotServerEnabled else { return }
+                    if let local, local.capturedAt > (self.grokBot?.capturedAt ?? .distantPast) { self.grokBot = local }
+                    return
+                }
                 self.grokGate.recordFailure()
                 if failure == .signedOut { self.grokBot = nil }
             }
